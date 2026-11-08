@@ -187,6 +187,20 @@ jobs:
           cd mobile
           flutter pub get
 
+      - name: Retry Gradle Download
+        run: |
+          cd mobile/android
+          chmod +x gradlew
+          for i in 1 2 3 4 5; do
+            if ./gradlew --version; then
+              exit 0
+            fi
+            echo "Gradle download failed. Retrying in 20 seconds..."
+            sleep 20
+          done
+          echo "Gradle download failed after 5 attempts."
+          exit 1
+
       - name: Build Android APK
         run: |
           cd mobile
