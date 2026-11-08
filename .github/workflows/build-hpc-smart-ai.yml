@@ -204,7 +204,7 @@ jobs:
             exit 1
           fi
 
-          sed -i 's#^distributionUrl=.*#distributionUrl=https\\://services.gradle.org/distributions/gradle-8.14.4-bin.zip#' mobile/android/gradle/wrapper/gradle-wrapper.properties
+          sed -i 's#^distributionUrl=.*#distributionUrl=https\\://services.gradle.org/distributions/gradle-9.3.1-bin.zip#' mobile/android/gradle/wrapper/gradle-wrapper.properties
 
           echo "Selected Gradle version:"
           grep distributionUrl mobile/android/gradle/wrapper/gradle-wrapper.properties
