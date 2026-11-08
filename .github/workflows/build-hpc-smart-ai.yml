@@ -1,4 +1,5 @@
-Name: HPC Smart AI Application Builder
+
+name: HPC Smart AI Application Builder
 
 on:
   workflow_dispatch:
@@ -8,11 +9,14 @@ permissions:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
 
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -25,6 +29,11 @@ jobs:
         with:
           channel: stable
           cache: true
+
+      - name: Show Build Versions
+        run: |
+          flutter --version
+          java -version
 
       - name: Create Flutter Application
         run: |
@@ -121,6 +130,7 @@ jobs:
                         itemCount: messages.length,
                         itemBuilder: (context, index) {
                           final isUser = index > 0;
+
                           return Align(
                             alignment: isUser
                                 ? Alignment.centerRight
@@ -181,47 +191,51 @@ jobs:
           }
           DART
 
-      - name: Install Dependencies
-        run: |
-          cd mobile
-          flutter pub get
+      - name: Install Flutter Dependencies
+        working-directory: mobile
+        run: flutter pub get
 
-      - name: Use Direct Gradle Download
+      - name: Set Compatible Gradle Version
         run: |
-          sed -i 's#https://services.gradle.org/distributions/gradle-.*-bin.zip#https://services.gradle.org/distributions/gradle-8.9-bin.zip#' mobile/android/gradle/wrapper/gradle-wrapper.properties || true
-          sed -i 's#distributionUrl=.*#distributionUrl=https\\://services.gradle.org/distributions/gradle-8.9-bin.zip#' mobile/android/gradle/wrapper/gradle-wrapper.properties
-          echo "Checking Gradle download URL:"
+          mkdir -p mobile/android/gradle/wrapper
+
+          if [ ! -f mobile/android/gradle/wrapper/gradle-wrapper.properties ]; then
+            echo "Gradle wrapper properties file is missing."
+            exit 1
+          fi
+
+          sed -i 's#^distributionUrl=.*#distributionUrl=https\\://services.gradle.org/distributions/gradle-8.14.4-bin.zip#' mobile/android/gradle/wrapper/gradle-wrapper.properties
+
+          echo "Selected Gradle version:"
           grep distributionUrl mobile/android/gradle/wrapper/gradle-wrapper.properties
 
-      - name: Retry Gradle Download
+      - name: Download Gradle With Retry
+        working-directory: mobile/android
         run: |
-          cd mobile/android
           chmod +x gradlew
 
           for i in 1 2 3 4 5; do
             echo "Gradle download attempt $i of 5"
 
-            if ./gradlew --version; then
-              echo "Gradle downloaded successfully."
+            if ./gradlew --version --no-daemon; then
+              echo "Gradle is ready."
               exit 0
             fi
 
-            echo "Download failed. Retrying in 30 seconds..."
+            echo "Attempt failed. Waiting 30 seconds..."
             sleep 30
           done
 
-          echo "Gradle download failed after 5 attempts."
+          echo "Gradle could not be downloaded."
           exit 1
 
       - name: Build Android APK
-        run: |
-          cd mobile
-          flutter build apk --release
+        working-directory: mobile
+        run: flutter build apk --release
 
       - name: Build Web Application
-        run: |
-          cd mobile
-          flutter build web --release
+        working-directory: mobile
+        run: flutter build web --release
 
       - name: Save Project Files
         run: |
@@ -231,7 +245,7 @@ jobs:
           git add mobile/
 
           if ! git diff --cached --quiet; then
-            git commit -m "Create HPC Smart AI Flutter application"
+            git commit -m "Build HPC Smart AI Flutter application"
             git push
           fi
 
@@ -241,6 +255,7 @@ jobs:
           name: HPC-Smart-AI-Android-APK
           path: mobile/build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
+          retention-days: 14
 
       - name: Upload Web Application
         uses: actions/upload-artifact@v4
@@ -248,3 +263,4 @@ jobs:
           name: HPC-Smart-AI-Web
           path: mobile/build/web/
           if-no-files-found: error
+          retention-days: 14
