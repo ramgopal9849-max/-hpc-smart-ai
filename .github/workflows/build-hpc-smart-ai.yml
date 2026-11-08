@@ -190,19 +190,26 @@ jobs:
       - name: Use Direct Gradle Download
         run: |
           sed -i 's#https://github.com/gradle/gradle-distributions/releases/download/v9.3.1/gradle-9.3.1-all.zip#https://downloads.gradle.org/distributions/gradle-9.3.1-all.zip#' mobile/android/gradle/wrapper/gradle-wrapper.properties
-          cat mobile/android/gradle/wrapper/gradle-wrapper.properties
+          echo "Checking Gradle download URL:"
+          grep distributionUrl mobile/android/gradle/wrapper/gradle-wrapper.properties
 
       - name: Retry Gradle Download
         run: |
           cd mobile/android
           chmod +x gradlew
+
           for i in 1 2 3 4 5; do
+            echo "Gradle download attempt $i of 5"
+
             if ./gradlew --version; then
+              echo "Gradle downloaded successfully."
               exit 0
             fi
-            echo "Gradle download failed. Retrying in 30 seconds..."
+
+            echo "Download failed. Retrying in 30 seconds..."
             sleep 30
           done
+
           echo "Gradle download failed after 5 attempts."
           exit 1
 
@@ -220,7 +227,9 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+actions-user@users.noreply.github.com"
+
           git add mobile/
+
           if ! git diff --cached --quiet; then
             git commit -m "Create HPC Smart AI Flutter application"
             git push
@@ -231,9 +240,11 @@ jobs:
         with:
           name: HPC-Smart-AI-Android-APK
           path: mobile/build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
 
       - name: Upload Web Application
         uses: actions/upload-artifact@v4
         with:
           name: HPC-Smart-AI-Web
           path: mobile/build/web/
+          if-no-files-found: error
