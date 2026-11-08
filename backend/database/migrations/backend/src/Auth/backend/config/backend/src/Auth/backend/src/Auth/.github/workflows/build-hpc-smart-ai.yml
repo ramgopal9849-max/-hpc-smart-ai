@@ -1,0 +1,219 @@
+name: HPC Smart AI Application Builder
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Create Flutter Application
+        run: |
+          mkdir -p mobile
+          cd mobile
+
+          if [ ! -f pubspec.yaml ]; then
+            flutter create \
+              --org com.homeplumbercleaning \
+              --project-name hpc_smart_ai \
+              --platforms android,web .
+          fi
+
+      - name: Create HPC Smart AI Interface
+        run: |
+          cat > mobile/lib/main.dart <<'DART'
+          import 'package:flutter/material.dart';
+
+          void main() {
+            runApp(const HpcSmartAI());
+          }
+
+          class HpcSmartAI extends StatelessWidget {
+            const HpcSmartAI({super.key});
+
+            @override
+            Widget build(BuildContext context) {
+              return MaterialApp(
+                title: 'HPC Smart AI',
+                debugShowCheckedModeBanner: false,
+                theme: ThemeData(
+                  colorScheme: ColorScheme.fromSeed(
+                    seedColor: const Color(0xFF1769E0),
+                  ),
+                  useMaterial3: true,
+                ),
+                home: const ChatScreen(),
+              );
+            }
+          }
+
+          class ChatScreen extends StatefulWidget {
+            const ChatScreen({super.key});
+
+            @override
+            State<ChatScreen> createState() => _ChatScreenState();
+          }
+
+          class _ChatScreenState extends State<ChatScreen> {
+            final controller = TextEditingController();
+
+            final messages = <String>[
+              'नमस्ते! मैं HPC Smart AI हूँ। आपकी क्या सहायता कर सकता हूँ?',
+            ];
+
+            void sendMessage() {
+              final message = controller.text.trim();
+              if (message.isEmpty) return;
+
+              setState(() {
+                messages.add(message);
+                controller.clear();
+              });
+            }
+
+            @override
+            void dispose() {
+              controller.dispose();
+              super.dispose();
+            }
+
+            @override
+            Widget build(BuildContext context) {
+              return Scaffold(
+                appBar: AppBar(
+                  backgroundColor: const Color(0xFF1769E0),
+                  foregroundColor: Colors.white,
+                  title: const Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('HPC Smart AI'),
+                      Text(
+                        'Your Intelligent Assistant',
+                        style: TextStyle(fontSize: 12),
+                      ),
+                    ],
+                  ),
+                ),
+                body: Column(
+                  children: [
+                    Expanded(
+                      child: ListView.builder(
+                        padding: const EdgeInsets.all(16),
+                        itemCount: messages.length,
+                        itemBuilder: (context, index) {
+                          final isUser = index > 0;
+                          return Align(
+                            alignment: isUser
+                                ? Alignment.centerRight
+                                : Alignment.centerLeft,
+                            child: Container(
+                              margin: const EdgeInsets.only(bottom: 12),
+                              padding: const EdgeInsets.all(14),
+                              constraints: const BoxConstraints(
+                                maxWidth: 300,
+                              ),
+                              decoration: BoxDecoration(
+                                color: isUser
+                                    ? const Color(0xFF1769E0)
+                                    : Colors.grey.shade200,
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              child: Text(
+                                messages[index],
+                                style: TextStyle(
+                                  color: isUser
+                                      ? Colors.white
+                                      : Colors.black87,
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    SafeArea(
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: TextField(
+                                controller: controller,
+                                decoration: const InputDecoration(
+                                  hintText: 'अपना सवाल लिखें...',
+                                  border: OutlineInputBorder(),
+                                ),
+                                onSubmitted: (_) => sendMessage(),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            IconButton.filled(
+                              onPressed: sendMessage,
+                              icon: const Icon(Icons.send),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }
+          }
+          DART
+
+      - name: Install Dependencies
+        run: |
+          cd mobile
+          flutter pub get
+
+      - name: Build Android APK
+        run: |
+          cd mobile
+          flutter build apk --release
+
+      - name: Build Web Application
+        run: |
+          cd mobile
+          flutter build web --release
+
+      - name: Save Project Files
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add mobile/
+          if ! git diff --cached --quiet; then
+            git commit -m "Create HPC Smart AI Flutter application"
+            git push
+          fi
+
+      - name: Upload Android APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: HPC-Smart-AI-Android-APK
+          path: mobile/build/app/outputs/flutter-apk/app-release.apk
+
+      - name: Upload Web Application
+        uses: actions/upload-artifact@v4
+        with:
+          name: HPC-Smart-AI-Web
+          path: mobile/build/web/
