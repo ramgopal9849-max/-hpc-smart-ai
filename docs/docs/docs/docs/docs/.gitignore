@@ -1,0 +1,76 @@
+# Environment and Secret Files
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+secrets/
+credentials/
+private_keys/
+
+# PHP Dependencies
+/vendor/
+/backend/vendor/
+
+# Node.js Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# Flutter and Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+build/
+coverage/
+
+# Android Build Files
+.gradle/
+**/android/.gradle/
+**/android/local.properties
+**/android/key.properties
+*.jks
+*.keystore
+
+# IDE Files
+.idea/
+.vscode/
+*.iml
+
+# Operating System Files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+logs/
+
+# Temporary Files
+*.tmp
+*.temp
+*.bak
+*.swp
+*.swo
+
+# Database Files and Backups
+*.sqlite
+*.sqlite3
+*.db
+database-backups/
+backups/
+
+# Test and Cache Files
+.cache/
+.pytest_cache/
+__pycache__/
+*.pyc
+
+# Generated Documentation
+site/
