@@ -1,5 +1,4 @@
-
-name: HPC Smart AI Application Builder
+Name: HPC Smart AI Application Builder
 
 on:
   workflow_dispatch:
@@ -189,7 +188,8 @@ jobs:
 
       - name: Use Direct Gradle Download
         run: |
-          sed -i 's#https://github.com/gradle/gradle-distributions/releases/download/v9.3.1/gradle-9.3.1-all.zip#https://downloads.gradle.org/distributions/gradle-9.3.1-all.zip#' mobile/android/gradle/wrapper/gradle-wrapper.properties
+          sed -i 's#https://services.gradle.org/distributions/gradle-.*-bin.zip#https://services.gradle.org/distributions/gradle-8.9-bin.zip#' mobile/android/gradle/wrapper/gradle-wrapper.properties || true
+          sed -i 's#distributionUrl=.*#distributionUrl=https\\://services.gradle.org/distributions/gradle-8.9-bin.zip#' mobile/android/gradle/wrapper/gradle-wrapper.properties
           echo "Checking Gradle download URL:"
           grep distributionUrl mobile/android/gradle/wrapper/gradle-wrapper.properties
 
