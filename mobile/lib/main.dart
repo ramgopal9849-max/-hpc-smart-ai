@@ -182,14 +182,48 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
 
-              _menuItem(Icons.add, 'New Chat'),
-              _menuItem(Icons.login, 'Login / Register'),
-              _menuItem(Icons.auto_awesome, 'Connect AI'),
-              _menuItem(Icons.language, 'Connect Website'),
-              _menuItem(Icons.folder_outlined, 'Documents'),
-              _menuItem(Icons.history, 'Chat History'),
-              _menuItem(Icons.settings_outlined, 'Settings'),
-              _menuItem(Icons.help_outline, 'Help & Support'),
+              // MENU ITEMS WITH DESCRIPTIONS
+
+              _menuItem(
+                Icons.add,
+                'New Chat',
+                'Start a fresh conversation',
+              ),
+              _menuItem(
+                Icons.login,
+                'Login / Register',
+                'Access or create your account',
+              ),
+              _menuItem(
+                Icons.auto_awesome,
+                'Connect AI',
+                'Set up your AI provider',
+              ),
+              _menuItem(
+                Icons.language,
+                'Connect Website',
+                'Connect your business website',
+              ),
+              _menuItem(
+                Icons.folder_outlined,
+                'Documents',
+                'Upload and manage your files',
+              ),
+              _menuItem(
+                Icons.history,
+                'Chat History',
+                'View your previous conversations',
+              ),
+              _menuItem(
+                Icons.settings_outlined,
+                'Settings',
+                'Manage app preferences',
+              ),
+              _menuItem(
+                Icons.help_outline,
+                'Help & Support',
+                'Get help and submit complaints',
+              ),
 
               const Spacer(),
               const Divider(),
@@ -255,12 +289,36 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _menuItem(IconData icon, String title) {
+  // MENU ITEM WIDGET WITH TITLE AND SUBTITLE
+
+  Widget _menuItem(
+    IconData icon,
+    String title,
+    String subtitle,
+  ) {
     return ListTile(
-      leading: Icon(icon, color: hpcBlue),
+      contentPadding: const EdgeInsets.symmetric(
+        horizontal: 20,
+        vertical: 3,
+      ),
+      leading: Icon(
+        icon,
+        color: hpcBlue,
+        size: 24,
+      ),
       title: Text(
         title,
-        style: const TextStyle(fontWeight: FontWeight.w500),
+        style: const TextStyle(
+          fontWeight: FontWeight.w600,
+          fontSize: 14,
+        ),
+      ),
+      subtitle: Text(
+        subtitle,
+        style: const TextStyle(
+          fontSize: 11,
+          color: Colors.black54,
+        ),
       ),
       trailing: const Icon(
         Icons.chevron_right,
