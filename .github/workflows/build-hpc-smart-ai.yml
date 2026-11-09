@@ -195,16 +195,41 @@ jobs:
         working-directory: mobile
         run: flutter pub get
 
+      - name: Configure HPC Smart AI App Logo
+        working-directory: mobile
+        run: |
+          if [ ! -f ../hpc-smart-ai-app-icon.png ]; then
+            echo "ERROR: HPC Smart AI logo not found in repository root."
+            exit 1
+          fi
+
+          flutter pub add --dev flutter_launcher_icons
+
+          cat > flutter_launcher_icons.yaml <<'YAML'
+          flutter_launcher_icons:
+            android: "launcher_icon"
+            ios: false
+            image_path: "../hpc-smart-ai-app-icon.png"
+            min_sdk_android: 21
+            adaptive_icon_background: "#FFFFFF"
+            adaptive_icon_foreground: "../hpc-smart-ai-app-icon.png"
+            web:
+              generate: true
+              image_path: "../hpc-smart-ai-app-icon.png"
+              background_color: "#1769E0"
+              theme_color: "#1769E0"
+          YAML
+
+          dart run flutter_launcher_icons -f flutter_launcher_icons.yaml
+
       - name: Set Compatible Gradle Version
         run: |
-          mkdir -p mobile/android/gradle/wrapper
-
           if [ ! -f mobile/android/gradle/wrapper/gradle-wrapper.properties ]; then
             echo "Gradle wrapper properties file is missing."
             exit 1
           fi
 
-          sed -i 's#^distributionUrl=.*#distributionUrl=https\\://services.gradle.org/distributions/gradle-9.3.1-bin.zip#' mobile/android/gradle/wrapper/gradle-wrapper.properties
+          sed -i 's#^distributionUrl=.*#distributionUrl=https\\://downloads.gradle.org/distributions/gradle-9.3.1-bin.zip#' mobile/android/gradle/wrapper/gradle-wrapper.properties
 
           echo "Selected Gradle version:"
           grep distributionUrl mobile/android/gradle/wrapper/gradle-wrapper.properties
@@ -245,7 +270,7 @@ jobs:
           git add mobile/
 
           if ! git diff --cached --quiet; then
-            git commit -m "Build HPC Smart AI Flutter application"
+            git commit -m "Add HPC Smart AI application branding and launcher icon"
             git push
           fi
 
