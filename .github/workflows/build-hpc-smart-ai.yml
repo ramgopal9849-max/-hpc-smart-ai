@@ -35,7 +35,7 @@ jobs:
           flutter --version
           java -version
 
-            - name: Create Flutter Application
+      - name: Create Flutter Application
         run: |
           mkdir -p mobile
           cd mobile
@@ -66,6 +66,8 @@ jobs:
 
       - name: Create HPC Smart AI Interface
         run: |
+          mkdir -p mobile/lib
+
           cat > mobile/lib/main.dart <<'DART'
           import 'package:flutter/material.dart';
 
@@ -108,6 +110,7 @@ jobs:
 
             void sendMessage() {
               final message = controller.text.trim();
+
               if (message.isEmpty) return;
 
               setState(() {
@@ -287,7 +290,7 @@ jobs:
           git add mobile/
 
           if ! git diff --cached --quiet; then
-            git commit -m "Add HPC Smart AI application branding and launcher icon"
+            git commit -m "Build HPC Smart AI Flutter application"
             git push
           fi
 
