@@ -35,7 +35,7 @@ jobs:
           flutter --version
           java -version
 
-      - name: Create Flutter Application
+            - name: Create Flutter Application
         run: |
           mkdir -p mobile
           cd mobile
@@ -46,6 +46,23 @@ jobs:
               --project-name hpc_smart_ai \
               --platforms android,web .
           fi
+
+          if [ ! -f android/gradlew ] || [ ! -f android/gradle/wrapper/gradle-wrapper.properties ]; then
+            echo "Android Gradle Wrapper missing. Regenerating platform files."
+
+            flutter create \
+              --org com.homeplumbercleaning \
+              --project-name hpc_smart_ai \
+              --platforms android,web .
+          fi
+
+          if [ ! -f android/gradlew ]; then
+            echo "ERROR: Android Gradle Wrapper was not generated."
+            exit 1
+          fi
+
+          echo "Android Gradle Wrapper verified."
+          ls -l android/gradlew
 
       - name: Create HPC Smart AI Interface
         run: |
