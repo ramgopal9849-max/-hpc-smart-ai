@@ -1754,7 +1754,7 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
           const SizedBox(height: 8),
           DropdownButtonFormField<String>(
-            value: language,
+            initialValue: language,
             decoration: const InputDecoration(
               border: OutlineInputBorder(),
             ),
@@ -1779,7 +1779,7 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
           const SizedBox(height: 8),
           DropdownButtonFormField<String>(
-            value: theme,
+            initialValue: theme,
             decoration: const InputDecoration(
               border: OutlineInputBorder(),
             ),
@@ -1802,7 +1802,7 @@ class _SettingsPageState extends State<SettingsPage> {
             subtitle: const Text('Manage notification preference'),
             secondary: const Icon(Icons.notifications_outlined),
             value: notifications,
-            activeColor: hpcBlue,
+            activeThumbColor: hpcBlue,
             onChanged: (value) {
               setState(() => notifications = value);
             },
