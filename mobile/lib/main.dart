@@ -47,8 +47,7 @@ class HpcApi {
   static Future<void> loadSession() async {
     token = await storage.read(key: 'hpc_token');
 
-    final savedBusinessId =
-        await storage.read(key: 'hpc_business_id');
+    final savedBusinessId = await storage.read(key: 'hpc_business_id');
 
     businessId = int.tryParse(savedBusinessId ?? '');
 
@@ -56,18 +55,14 @@ class HpcApi {
 
     if (userData != null) {
       try {
-        currentUser = Map<String, dynamic>.from(
-          jsonDecode(userData),
-        );
+        currentUser = Map<String, dynamic>.from(jsonDecode(userData));
       } catch (_) {
         currentUser = null;
       }
     }
   }
 
-  static Map<String, String> _headers({
-    bool authenticated = false,
-  }) {
+  static Map<String, String> _headers({bool authenticated = false}) {
     final headers = <String, String>{
       'Content-Type': 'application/json',
       'Accept': 'application/json',
@@ -139,9 +134,7 @@ class HpcApi {
     }
   }
 
-  static Future<void> saveSession(
-    Map<String, dynamic> result,
-  ) async {
+  static Future<void> saveSession(Map<String, dynamic> result) async {
     final newToken = result['token'];
 
     if (newToken == null || newToken.toString().isEmpty) {
@@ -150,31 +143,21 @@ class HpcApi {
 
     token = newToken.toString();
 
-    await storage.write(
-      key: 'hpc_token',
-      value: token,
-    );
+    await storage.write(key: 'hpc_token', value: token);
 
     final user = result['user'];
 
     if (user is Map) {
       currentUser = Map<String, dynamic>.from(user);
 
-      await storage.write(
-        key: 'hpc_user',
-        value: jsonEncode(currentUser),
-      );
+      await storage.write(key: 'hpc_user', value: jsonEncode(currentUser));
     }
   }
 
   static Future<void> logout() async {
     try {
       if (token != null) {
-        await request(
-          '/auth/logout',
-          method: 'POST',
-          authenticated: true,
-        );
+        await request('/auth/logout', method: 'POST', authenticated: true);
       }
     } catch (_) {}
 
@@ -188,14 +171,9 @@ class HpcApi {
   }
 
   static Future<List<Map<String, dynamic>>> getBusinesses() async {
-    final result = await request(
-      '/businesses',
-      authenticated: true,
-    );
+    final result = await request('/businesses', authenticated: true);
 
-    dynamic data = result['businesses'] ??
-        result['data'] ??
-        result['items'];
+    dynamic data = result['businesses'] ?? result['data'] ?? result['items'];
 
     if (data is Map) {
       data = data['businesses'] ?? data['items'];
@@ -209,21 +187,15 @@ class HpcApi {
         .toList();
   }
 
-    static Future<Map<String, dynamic>> getBusinessDashboard(
-    int id,
-  ) {
-    return request(
-      '/dashboard/$id',
-      authenticated: true,
-    );
-    }
+  static Future<Map<String, dynamic>> getBusinessDashboard(int id) {
+    return request('/dashboard/$id', authenticated: true);
+  }
+
   static Future<Map<String, dynamic>> createBusiness({
     required String name,
     String websiteUrl = '',
   }) async {
-    final body = <String, dynamic>{
-      'name': name,
-    };
+    final body = <String, dynamic>{'name': name};
 
     if (websiteUrl.trim().isNotEmpty) {
       body['website_url'] = websiteUrl.trim();
@@ -240,19 +212,11 @@ class HpcApi {
   static Future<void> selectBusiness(int id) async {
     businessId = id;
 
-    await storage.write(
-      key: 'hpc_business_id',
-      value: id.toString(),
-    );
+    await storage.write(key: 'hpc_business_id', value: id.toString());
   }
 
-  static Future<Map<String, dynamic>> getAIProvider(
-    int id,
-  ) {
-    return request(
-      '/ai/provider/$id',
-      authenticated: true,
-    );
+  static Future<Map<String, dynamic>> getAIProvider(int id) {
+    return request('/ai/provider/$id', authenticated: true);
   }
 
   static Future<Map<String, dynamic>> saveAIProvider({
@@ -280,11 +244,7 @@ class HpcApi {
       '/ai/chat',
       method: 'POST',
       authenticated: true,
-      body: {
-        'business_id': id,
-        'chat_id': chatId,
-        'message': message,
-      },
+      body: {'business_id': id, 'chat_id': chatId, 'message': message},
     );
   }
 }
@@ -305,12 +265,7 @@ Widget pageNotice(String text) {
       children: [
         const Icon(Icons.info_outline, color: hpcBlue),
         const SizedBox(width: 10),
-        Expanded(
-          child: Text(
-            text,
-            style: const TextStyle(fontSize: 13),
-          ),
-        ),
+        Expanded(child: Text(text, style: const TextStyle(fontSize: 13))),
       ],
     ),
   );
@@ -324,9 +279,7 @@ Widget pageButton(String label, VoidCallback? onPressed) {
       onPressed: onPressed,
       style: FilledButton.styleFrom(
         backgroundColor: hpcBlue,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
       child: Text(label),
     ),
@@ -334,9 +287,7 @@ Widget pageButton(String label, VoidCallback? onPressed) {
 }
 
 void showPageMessage(BuildContext context, String message) {
-  ScaffoldMessenger.of(context).showSnackBar(
-    SnackBar(content: Text(message)),
-  );
+  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
 }
 
 class PageHeader extends StatelessWidget {
@@ -365,10 +316,7 @@ class PageHeader extends StatelessWidget {
         Text(
           title,
           textAlign: TextAlign.center,
-          style: const TextStyle(
-            fontSize: 23,
-            fontWeight: FontWeight.bold,
-          ),
+          style: const TextStyle(fontSize: 23, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 7),
         Text(
@@ -380,8 +328,8 @@ class PageHeader extends StatelessWidget {
       ],
     );
   }
-}           
-    
+}
+
 // =====================================================
 // HOME SCREEN - PART 1
 // =====================================================
@@ -394,13 +342,10 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-
   // Controllers
-  final TextEditingController controller =
-      TextEditingController();
+  final TextEditingController controller = TextEditingController();
 
-  final ScrollController scrollController =
-      ScrollController();
+  final ScrollController scrollController = ScrollController();
 
   // Chat messages
   final List<Map<String, dynamic>> messages = [];
@@ -424,9 +369,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     if (words.isEmpty) return 'U';
 
-    return words
-        .map((word) => word.characters.first.toUpperCase())
-        .join();
+    return words.map((word) => word.characters.first.toUpperCase()).join();
   }
 
   // =====================================================
@@ -502,7 +445,7 @@ class _HomeScreenState extends State<HomeScreen> {
       });
     }
   }
-    // =====================================================
+  // =====================================================
   // SEND AI MESSAGE
   // =====================================================
 
@@ -513,10 +456,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     // Login check
     if (HpcApi.token == null) {
-      showPageMessage(
-        context,
-        'AI Chat use karne ke liye pehle Login karein.',
-      );
+      showPageMessage(context, 'AI Chat use karne ke liye pehle Login karein.');
 
       await openPage('Login / Register');
       return;
@@ -524,20 +464,14 @@ class _HomeScreenState extends State<HomeScreen> {
 
     // Business connection check
     if (HpcApi.businessId == null) {
-      showPageMessage(
-        context,
-        'Pehle apna Business / Website connect karein.',
-      );
+      showPageMessage(context, 'Pehle apna Business / Website connect karein.');
 
       await openPage('Connect Website');
       return;
     }
 
     setState(() {
-      messages.add({
-        'text': message,
-        'isUser': true,
-      });
+      messages.add({'text': message, 'isUser': true});
 
       controller.clear();
       sending = true;
@@ -552,25 +486,19 @@ class _HomeScreenState extends State<HomeScreen> {
         message: message,
       );
 
-      final answer = result['answer']?.toString() ??
-          'AI ne koi jawab nahi diya.';
+      final answer =
+          result['answer']?.toString() ?? 'AI ne koi jawab nahi diya.';
 
       final returnedChatId = result['chat_id'];
 
       if (returnedChatId != null) {
-        chatId = int.tryParse(
-              returnedChatId.toString(),
-            ) ??
-            chatId;
+        chatId = int.tryParse(returnedChatId.toString()) ?? chatId;
       }
 
       if (!mounted) return;
 
       setState(() {
-        messages.add({
-          'text': answer,
-          'isUser': false,
-        });
+        messages.add({'text': answer, 'isUser': false});
       });
     } catch (e) {
       if (!mounted) return;
@@ -607,7 +535,7 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     });
   }
-    // =====================================================
+  // =====================================================
   // HOME SCREEN UI
   // =====================================================
 
@@ -617,7 +545,6 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-
           const SizedBox(height: 20),
 
           // AI ICON
@@ -628,21 +555,14 @@ class _HomeScreenState extends State<HomeScreen> {
               color: const Color(0xFFE8F0FF),
               borderRadius: BorderRadius.circular(24),
             ),
-            child: const Icon(
-              Icons.auto_awesome,
-              size: 43,
-              color: hpcBlue,
-            ),
+            child: const Icon(Icons.auto_awesome, size: 43, color: hpcBlue),
           ),
 
           const SizedBox(height: 20),
 
           const Text(
             'Hello! Welcome to',
-            style: TextStyle(
-              fontSize: 19,
-              color: Colors.black54,
-            ),
+            style: TextStyle(fontSize: 19, color: Colors.black54),
           ),
 
           const SizedBox(height: 5),
@@ -663,11 +583,7 @@ class _HomeScreenState extends State<HomeScreen> {
             'Your intelligent assistant for questions, business, '
             'documents and technology.',
             textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.black54,
-              height: 1.5,
-            ),
+            style: TextStyle(fontSize: 14, color: Colors.black54, height: 1.5),
           ),
 
           const SizedBox(height: 30),
@@ -676,10 +592,7 @@ class _HomeScreenState extends State<HomeScreen> {
             alignment: Alignment.centerLeft,
             child: Text(
               'Explore what you can do',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 17,
-              ),
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17),
             ),
           ),
 
@@ -690,8 +603,7 @@ class _HomeScreenState extends State<HomeScreen> {
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             itemCount: features.length,
-            gridDelegate:
-                const SliverGridDelegateWithFixedCrossAxisCount(
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: 2,
               crossAxisSpacing: 12,
               mainAxisSpacing: 12,
@@ -702,16 +614,13 @@ class _HomeScreenState extends State<HomeScreen> {
 
               return InkWell(
                 borderRadius: BorderRadius.circular(18),
-                onTap: () =>
-                    sendMessage(feature['prompt'] as String),
+                onTap: () => sendMessage(feature['prompt'] as String),
                 child: Container(
                   padding: const EdgeInsets.all(15),
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(18),
-                    border: Border.all(
-                      color: const Color(0xFFE5EAF2),
-                    ),
+                    border: Border.all(color: const Color(0xFFE5EAF2)),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -754,12 +663,9 @@ class _HomeScreenState extends State<HomeScreen> {
             HpcApi.token == null
                 ? 'Login karke apna AI workspace shuru karein.'
                 : HpcApi.businessId == null
-                    ? 'AI use karne ke liye pehle website connect karein.'
-                    : 'What would you like help with today?',
-            style: const TextStyle(
-              color: Colors.black54,
-              fontSize: 13,
-            ),
+                ? 'AI use karne ke liye pehle website connect karein.'
+                : 'What would you like help with today?',
+            style: const TextStyle(color: Colors.black54, fontSize: 13),
             textAlign: TextAlign.center,
           ),
 
@@ -768,7 +674,7 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
-    // =====================================================
+  // =====================================================
   // CHAT SCREEN
   // =====================================================
 
@@ -782,26 +688,18 @@ class _HomeScreenState extends State<HomeScreen> {
         final isUser = message['isUser'] as bool;
 
         return Align(
-          alignment: isUser
-              ? Alignment.centerRight
-              : Alignment.centerLeft,
+          alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
           child: Container(
             margin: const EdgeInsets.only(bottom: 12),
             padding: const EdgeInsets.all(14),
-            constraints: const BoxConstraints(
-              maxWidth: 310,
-            ),
+            constraints: const BoxConstraints(maxWidth: 310),
             decoration: BoxDecoration(
               color: isUser ? hpcBlue : Colors.white,
               borderRadius: BorderRadius.circular(17),
             ),
             child: Text(
               message['text'] as String,
-              style: TextStyle(
-                color: isUser
-                    ? Colors.white
-                    : Colors.black87,
-              ),
+              style: TextStyle(color: isUser ? Colors.white : Colors.black87),
             ),
           ),
         );
@@ -819,11 +717,7 @@ class _HomeScreenState extends State<HomeScreen> {
         padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
         decoration: const BoxDecoration(
           color: Colors.white,
-          border: Border(
-            top: BorderSide(
-              color: Color(0xFFE8ECF2),
-            ),
-          ),
+          border: Border(top: BorderSide(color: Color(0xFFE8ECF2))),
         ),
         child: Row(
           children: [
@@ -838,8 +732,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   hintText: 'Message HPC Smart AI...',
                   filled: true,
                   fillColor: hpcBackground,
-                  contentPadding:
-                      const EdgeInsets.symmetric(
+                  contentPadding: const EdgeInsets.symmetric(
                     horizontal: 17,
                     vertical: 13,
                   ),
@@ -858,10 +751,7 @@ class _HomeScreenState extends State<HomeScreen> {
               backgroundColor: hpcBlue,
               child: IconButton(
                 onPressed: sending ? null : sendMessage,
-                icon: const Icon(
-                  Icons.arrow_upward,
-                  color: Colors.white,
-                ),
+                icon: const Icon(Icons.arrow_upward, color: Colors.white),
               ),
             ),
           ],
@@ -869,7 +759,7 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
-    // =====================================================
+  // =====================================================
   // NEW CHAT
   // =====================================================
 
@@ -921,10 +811,7 @@ class _HomeScreenState extends State<HomeScreen> {
         page = const PlaceholderPage(title: 'Coming Soon');
     }
 
-    await Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => page),
-    );
+    await Navigator.push(context, MaterialPageRoute(builder: (_) => page));
 
     if (mounted) {
       setState(() {});
@@ -945,19 +832,16 @@ class _HomeScreenState extends State<HomeScreen> {
 
     final user = HpcApi.currentUser ?? {};
 
-    final userName =
-        user['name']?.toString().trim().isNotEmpty == true
-            ? user['name'].toString()
-            : 'User';
+    final userName = user['name']?.toString().trim().isNotEmpty == true
+        ? user['name'].toString()
+        : 'User';
 
     final email = user['email']?.toString() ?? '';
 
     await showModalBottomSheet<void>(
       context: context,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(
-          top: Radius.circular(24),
-        ),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (sheetContext) {
         return SafeArea(
@@ -968,10 +852,7 @@ class _HomeScreenState extends State<HomeScreen> {
               children: [
                 const Text(
                   'My Profile',
-                  style: TextStyle(
-                    fontSize: 21,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: TextStyle(fontSize: 21, fontWeight: FontWeight.bold),
                 ),
 
                 const SizedBox(height: 22),
@@ -992,9 +873,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
                 Text(
                   email.isEmpty ? 'Email not available' : email,
-                  style: const TextStyle(
-                    color: Colors.black54,
-                  ),
+                  style: const TextStyle(color: Colors.black54),
                 ),
 
                 const SizedBox(height: 12),
@@ -1038,10 +917,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
                       setState(() {});
                     },
-                    icon: const Icon(
-                      Icons.logout,
-                      color: Colors.red,
-                    ),
+                    icon: const Icon(Icons.logout, color: Colors.red),
                     label: const Text(
                       'Logout',
                       style: TextStyle(
@@ -1050,9 +926,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ),
                     style: OutlinedButton.styleFrom(
-                      side: const BorderSide(
-                        color: Colors.red,
-                      ),
+                      side: const BorderSide(color: Colors.red),
                     ),
                   ),
                 ),
@@ -1085,8 +959,7 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
 
-    final userName =
-        HpcApi.currentUser?['name']?.toString() ?? 'User';
+    final userName = HpcApi.currentUser?['name']?.toString() ?? 'User';
 
     return Padding(
       padding: const EdgeInsets.only(right: 12),
@@ -1107,10 +980,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     decoration: BoxDecoration(
                       color: Colors.green,
                       shape: BoxShape.circle,
-                      border: Border.all(
-                        color: Colors.white,
-                        width: 1.5,
-                      ),
+                      border: Border.all(color: Colors.white, width: 1.5),
                     ),
                   ),
                 ),
@@ -1127,40 +997,19 @@ class _HomeScreenState extends State<HomeScreen> {
   // DRAWER MENU ITEM
   // =====================================================
 
-  Widget _menuItem(
-    IconData icon,
-    String title,
-    String subtitle,
-  ) {
+  Widget _menuItem(IconData icon, String title, String subtitle) {
     return ListTile(
-      contentPadding: const EdgeInsets.symmetric(
-        horizontal: 20,
-        vertical: 3,
-      ),
-      leading: Icon(
-        icon,
-        color: hpcBlue,
-        size: 24,
-      ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 3),
+      leading: Icon(icon, color: hpcBlue, size: 24),
       title: Text(
         title,
-        style: const TextStyle(
-          fontWeight: FontWeight.w600,
-          fontSize: 14,
-        ),
+        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
       ),
       subtitle: Text(
         subtitle,
-        style: const TextStyle(
-          fontSize: 11,
-          color: Colors.black54,
-        ),
+        style: const TextStyle(fontSize: 11, color: Colors.black54),
       ),
-      trailing: const Icon(
-        Icons.chevron_right,
-        color: Colors.grey,
-        size: 20,
-      ),
+      trailing: const Icon(Icons.chevron_right, color: Colors.grey, size: 20),
       onTap: () {
         Navigator.pop(context);
 
@@ -1226,19 +1075,13 @@ class _HomeScreenState extends State<HomeScreen> {
                     Text(
                       HpcApi.currentUser?['name']?.toString() ??
                           'Your Intelligent Assistant',
-                      style: const TextStyle(
-                        color: Colors.white70,
-                      ),
+                      style: const TextStyle(color: Colors.white70),
                     ),
                   ],
                 ),
               ),
 
-              _menuItem(
-                Icons.add,
-                'New Chat',
-                'Start a fresh conversation',
-              ),
+              _menuItem(Icons.add, 'New Chat', 'Start a fresh conversation'),
 
               _menuItem(
                 Icons.login,
@@ -1286,10 +1129,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
               if (HpcApi.token != null)
                 ListTile(
-                  leading: const Icon(
-                    Icons.logout,
-                    color: Colors.red,
-                  ),
+                  leading: const Icon(Icons.logout, color: Colors.red),
                   title: const Text('Logout'),
                   onTap: () async {
                     Navigator.pop(context);
@@ -1338,10 +1178,7 @@ class _HomeScreenState extends State<HomeScreen> {
             CircleAvatar(
               radius: 17,
               backgroundColor: Color(0xFFEAF1FF),
-              child: Icon(
-                Icons.smart_toy_outlined,
-                color: hpcBlue,
-              ),
+              child: Icon(Icons.smart_toy_outlined, color: hpcBlue),
             ),
 
             SizedBox(width: 10),
@@ -1361,10 +1198,7 @@ class _HomeScreenState extends State<HomeScreen> {
           IconButton(
             tooltip: 'New Chat',
             onPressed: newChat,
-            icon: const Icon(
-              Icons.edit_square,
-              color: hpcBlue,
-            ),
+            icon: const Icon(Icons.edit_square, color: hpcBlue),
           ),
 
           _profileAction(),
@@ -1372,24 +1206,15 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
 
       body: loadingSession
-          ? const Center(
-              child: CircularProgressIndicator(
-                color: hpcBlue,
-              ),
-            )
+          ? const Center(child: CircularProgressIndicator(color: hpcBlue))
           : Column(
               children: [
                 Expanded(
-                  child: messages.isEmpty
-                      ? _homeScreen()
-                      : _chatScreen(),
+                  child: messages.isEmpty ? _homeScreen() : _chatScreen(),
                 ),
 
                 if (sending)
-                  const LinearProgressIndicator(
-                    minHeight: 2,
-                    color: hpcBlue,
-                  ),
+                  const LinearProgressIndicator(minHeight: 2, color: hpcBlue),
 
                 _messageInput(),
               ],
@@ -1551,9 +1376,7 @@ class _LoginPageState extends State<LoginPage> {
                     setState(() => obscurePassword = !obscurePassword);
                   },
                   icon: Icon(
-                    obscurePassword
-                        ? Icons.visibility
-                        : Icons.visibility_off,
+                    obscurePassword ? Icons.visibility : Icons.visibility_off,
                   ),
                 ),
                 border: const OutlineInputBorder(),
@@ -1564,8 +1387,8 @@ class _LoginPageState extends State<LoginPage> {
               loading
                   ? 'Please wait...'
                   : isLogin
-                      ? 'Login'
-                      : 'Create Account',
+                  ? 'Login'
+                  : 'Create Account',
               loading ? null : submit,
             ),
             const SizedBox(height: 15),
@@ -1578,7 +1401,7 @@ class _LoginPageState extends State<LoginPage> {
       ),
     );
   }
-}      
+}
 
 // =====================================================
 // CONNECT WEBSITE / BUSINESS
@@ -1588,8 +1411,7 @@ class ConnectWebsitePage extends StatefulWidget {
   const ConnectWebsitePage({super.key});
 
   @override
-  State<ConnectWebsitePage> createState() =>
-      _ConnectWebsitePageState();
+  State<ConnectWebsitePage> createState() => _ConnectWebsitePageState();
 }
 
 class _ConnectWebsitePageState extends State<ConnectWebsitePage> {
@@ -1615,9 +1437,7 @@ class _ConnectWebsitePageState extends State<ConnectWebsitePage> {
   Future<void> openLogin() async {
     await Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (_) => const LoginPage(),
-      ),
+      MaterialPageRoute(builder: (_) => const LoginPage()),
     );
 
     if (!mounted) return;
@@ -1645,9 +1465,7 @@ class _ConnectWebsitePageState extends State<ConnectWebsitePage> {
       });
 
       if (HpcApi.businessId == null && businesses.isNotEmpty) {
-        final firstId = int.tryParse(
-          (businesses.first['id'] ?? '').toString(),
-        );
+        final firstId = int.tryParse((businesses.first['id'] ?? '').toString());
 
         if (firstId != null) {
           await HpcApi.selectBusiness(firstId);
@@ -1677,10 +1495,7 @@ class _ConnectWebsitePageState extends State<ConnectWebsitePage> {
     if (website.isNotEmpty &&
         (!website.startsWith('https://') ||
             Uri.tryParse(website)?.host.isEmpty != false)) {
-      showPageMessage(
-        context,
-        'Website URL HTTPS se shuru hona chahiye.',
-      );
+      showPageMessage(context, 'Website URL HTTPS se shuru hona chahiye.');
       return;
     }
 
@@ -1695,9 +1510,7 @@ class _ConnectWebsitePageState extends State<ConnectWebsitePage> {
       dynamic business = result['business'] ?? result['data'];
 
       if (business is Map) {
-        final id = int.tryParse(
-          (business['id'] ?? '').toString(),
-        );
+        final id = int.tryParse((business['id'] ?? '').toString());
 
         if (id != null) {
           await HpcApi.selectBusiness(id);
@@ -1795,13 +1608,13 @@ class _ConnectWebsitePageState extends State<ConnectWebsitePage> {
               loading
                   ? 'Please wait...'
                   : isLoggedIn
-                      ? 'Create / Connect Business'
-                      : 'Login to Connect Website',
+                  ? 'Create / Connect Business'
+                  : 'Login to Connect Website',
               loading
                   ? null
                   : isLoggedIn
-                      ? createBusiness
-                      : openLogin,
+                  ? createBusiness
+                  : openLogin,
             ),
 
             if (!isLoggedIn) ...[
@@ -1821,17 +1634,11 @@ class _ConnectWebsitePageState extends State<ConnectWebsitePage> {
                 children: [
                   const Text(
                     'Your Businesses',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 17,
-                    ),
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17),
                   ),
                   IconButton(
                     onPressed: loading ? null : loadBusinesses,
-                    icon: const Icon(
-                      Icons.refresh,
-                      color: hpcBlue,
-                    ),
+                    icon: const Icon(Icons.refresh, color: hpcBlue),
                   ),
                 ],
               ),
@@ -1843,65 +1650,53 @@ class _ConnectWebsitePageState extends State<ConnectWebsitePage> {
                 ),
 
               ...businesses.map((item) {
-  final id = int.tryParse(
-    (item['id'] ?? '').toString(),
-  );
+                final id = int.tryParse((item['id'] ?? '').toString());
 
-  final selected =
-      id != null && id == HpcApi.businessId;
+                final selected = id != null && id == HpcApi.businessId;
 
-  return Card(
-    child: ListTile(
-      leading: const Icon(
-        Icons.business,
-        color: hpcBlue,
-      ),
-      title: Text(
-        item['name']?.toString() ?? 'Business',
-      ),
-      subtitle: Text(
-        item['website_url']?.toString() ??
-            'Website not specified',
-      ),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (selected)
-            const Icon(
-              Icons.check_circle,
-              color: Colors.green,
-            ),
-          TextButton(
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => BusinessDashboardPage(
-                    business: item,
+                return Card(
+                  child: ListTile(
+                    leading: const Icon(Icons.business, color: hpcBlue),
+                    title: Text(item['name']?.toString() ?? 'Business'),
+                    subtitle: Text(
+                      item['website_url']?.toString() ??
+                          'Website not specified',
+                    ),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (selected)
+                          const Icon(Icons.check_circle, color: Colors.green),
+                        TextButton(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) =>
+                                    BusinessDashboardPage(business: item),
+                              ),
+                            );
+                          },
+                          child: const Text(
+                            'View Status',
+                            style: TextStyle(
+                              color: hpcBlue,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    onTap: () => selectBusiness(item),
                   ),
-                ),
-              );
-            },
-            child: const Text(
-              'View Status',
-              style: TextStyle(
-                color: hpcBlue,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ],
-      ),
-      onTap: () => selectBusiness(item),
-    ),
-  );
-}),
+                );
+              }),
             ],
-            ],
-          ),
+          ],
         ),
+      ),
     );
-  }            
+  }
 }
 // =====================================================
 // CONNECT AI
@@ -1939,9 +1734,7 @@ class _ConnectAIPageState extends State<ConnectAIPage> {
     setState(() => loading = true);
 
     try {
-      final result = await HpcApi.getAIProvider(
-        HpcApi.businessId!,
-      );
+      final result = await HpcApi.getAIProvider(HpcApi.businessId!);
 
       if (!mounted) return;
 
@@ -2107,18 +1900,11 @@ class DocumentsPage extends StatelessWidget {
               ),
               child: const Column(
                 children: [
-                  Icon(
-                    Icons.cloud_upload_outlined,
-                    size: 55,
-                    color: hpcBlue,
-                  ),
+                  Icon(Icons.cloud_upload_outlined, size: 55, color: hpcBlue),
                   SizedBox(height: 12),
                   Text(
                     'Upload Documents',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                   SizedBox(height: 7),
                   Text(
@@ -2138,9 +1924,7 @@ class DocumentsPage extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 15),
-            pageNotice(
-              'Document upload aur analysis abhi available nahi hai.',
-            ),
+            pageNotice('Document upload aur analysis abhi available nahi hai.'),
           ],
         ),
       ),
@@ -2155,10 +1939,7 @@ class DocumentsPage extends StatelessWidget {
 class ChatHistoryPage extends StatelessWidget {
   final List<Map<String, dynamic>> messages;
 
-  const ChatHistoryPage({
-    super.key,
-    required this.messages,
-  });
+  const ChatHistoryPage({super.key, required this.messages});
 
   @override
   Widget build(BuildContext context) {
@@ -2242,25 +2023,14 @@ class _SettingsPageState extends State<SettingsPage> {
             subtitle: 'Manage your app preferences',
             icon: Icons.settings_outlined,
           ),
-          const Text(
-            'Language',
-            style: TextStyle(fontWeight: FontWeight.bold),
-          ),
+          const Text('Language', style: TextStyle(fontWeight: FontWeight.bold)),
           const SizedBox(height: 8),
           DropdownButtonFormField<String>(
             initialValue: language,
-            decoration: const InputDecoration(
-              border: OutlineInputBorder(),
-            ),
+            decoration: const InputDecoration(border: OutlineInputBorder()),
             items: const [
-              DropdownMenuItem(
-                value: 'English',
-                child: Text('English'),
-              ),
-              DropdownMenuItem(
-                value: 'Hindi',
-                child: Text('Hindi'),
-              ),
+              DropdownMenuItem(value: 'English', child: Text('English')),
+              DropdownMenuItem(value: 'Hindi', child: Text('Hindi')),
             ],
             onChanged: (value) {
               if (value != null) setState(() => language = value);
@@ -2274,16 +2044,11 @@ class _SettingsPageState extends State<SettingsPage> {
           const SizedBox(height: 8),
           DropdownButtonFormField<String>(
             initialValue: theme,
-            decoration: const InputDecoration(
-              border: OutlineInputBorder(),
-            ),
+            decoration: const InputDecoration(border: OutlineInputBorder()),
             items: const [
               DropdownMenuItem(value: 'Light', child: Text('Light')),
               DropdownMenuItem(value: 'Dark', child: Text('Dark')),
-              DropdownMenuItem(
-                value: 'System',
-                child: Text('System Default'),
-              ),
+              DropdownMenuItem(value: 'System', child: Text('System Default')),
             ],
             onChanged: (value) {
               if (value != null) setState(() => theme = value);
@@ -2369,9 +2134,7 @@ class HelpSupportPage extends StatelessWidget {
               onTap: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(
-                    builder: (_) => const ComplaintPage(),
-                  ),
+                  MaterialPageRoute(builder: (_) => const ComplaintPage()),
                 );
               },
             ),
@@ -2450,18 +2213,13 @@ class ComplaintPage extends StatelessWidget {
 class PlaceholderPage extends StatelessWidget {
   final String title;
 
-  const PlaceholderPage({
-    super.key,
-    required this.title,
-  });
+  const PlaceholderPage({super.key, required this.title});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text(title)),
-      body: const Center(
-        child: Text('Coming Soon'),
-      ),
+      body: const Center(child: Text('Coming Soon')),
     );
   }
 }
@@ -2473,10 +2231,7 @@ class PlaceholderPage extends StatelessWidget {
 class BusinessDashboardPage extends StatelessWidget {
   final Map<String, dynamic> business;
 
-  const BusinessDashboardPage({
-    super.key,
-    required this.business,
-  });
+  const BusinessDashboardPage({super.key, required this.business});
 
   Widget infoCard({
     required IconData icon,
@@ -2489,17 +2244,11 @@ class BusinessDashboardPage extends StatelessWidget {
         leading: Icon(icon, color: hpcBlue),
         title: Text(
           title,
-          style: const TextStyle(
-            fontSize: 13,
-            color: Colors.grey,
-          ),
+          style: const TextStyle(fontSize: 13, color: Colors.grey),
         ),
         subtitle: Text(
           value,
-          style: const TextStyle(
-            fontSize: 15,
-            fontWeight: FontWeight.w600,
-          ),
+          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
         ),
       ),
     );
@@ -2507,11 +2256,9 @@ class BusinessDashboardPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final name =
-        business['name']?.toString() ?? 'Business';
+    final name = business['name']?.toString() ?? 'Business';
 
-    final website =
-        business['website_url']?.toString() ?? '';
+    final website = business['website_url']?.toString() ?? '';
 
     final status =
         business['status']?.toString() ??
@@ -2521,9 +2268,7 @@ class BusinessDashboardPage extends StatelessWidget {
     final id = business['id']?.toString() ?? 'Not available';
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Business Dashboard'),
-      ),
+      appBar: AppBar(title: const Text('Business Dashboard')),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -2538,11 +2283,7 @@ class BusinessDashboardPage extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Icon(
-                    Icons.business,
-                    color: Colors.white,
-                    size: 38,
-                  ),
+                  const Icon(Icons.business, color: Colors.white, size: 38),
                   const SizedBox(height: 12),
                   const Text(
                     'Business Overview',
@@ -2563,34 +2304,21 @@ class BusinessDashboardPage extends StatelessWidget {
             const SizedBox(height: 22),
             const Text(
               'Business Information',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 12),
-            infoCard(
-              icon: Icons.business,
-              title: 'Business Name',
-              value: name,
-            ),
+            infoCard(icon: Icons.business, title: 'Business Name', value: name),
             infoCard(
               icon: Icons.language,
               title: 'Website URL',
-              value: website.isEmpty
-                  ? 'Website not specified'
-                  : website,
+              value: website.isEmpty ? 'Website not specified' : website,
             ),
             infoCard(
               icon: Icons.verified_outlined,
               title: 'Connection Status',
               value: status,
             ),
-            infoCard(
-              icon: Icons.numbers,
-              title: 'Business ID',
-              value: id,
-            ),
+            infoCard(icon: Icons.numbers, title: 'Business ID', value: id),
             const SizedBox(height: 12),
             pageNotice(
               'Website read-only mode mein rahegi. '
