@@ -209,6 +209,14 @@ class HpcApi {
         .toList();
   }
 
+    static Future<Map<String, dynamic>> getBusinessDashboard(
+    int id,
+  ) {
+    return request(
+      '/dashboard/$id',
+      authenticated: true,
+    );
+    }
   static Future<Map<String, dynamic>> createBusiness({
     required String name,
     String websiteUrl = '',
