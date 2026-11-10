@@ -829,10 +829,328 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             itemBuilder: (context, index) {
               final feature = features[index];
+// =====================================================
+// HOME SCREEN - PART 1
+// =====================================================
+
+class HomeScreen extends StatefulWidget {
+  const HomeScreen({super.key});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+
+  // Controllers
+  final TextEditingController controller =
+      TextEditingController();
+
+  final ScrollController scrollController =
+      ScrollController();
+
+  // Chat messages
+  final List<Map<String, dynamic>> messages = [];
+
+  // States
+  bool sending = false;
+  bool loadingSession = true;
+
+  int chatId = 0;
+
+  // =====================================================
+  // PROFILE INITIALS
+  // =====================================================
+
+  String _getUserInitials(String name) {
+    final words = name
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((word) => word.isNotEmpty)
+        .toList();
+
+    if (words.isEmpty) return 'U';
+
+    return words
+        .map((word) => word.characters.first.toUpperCase())
+        .join();
+  }
+
+  // =====================================================
+  // PROFILE AVATAR
+  // =====================================================
+
+  Widget _profileAvatar(String userName) {
+    return CircleAvatar(
+      radius: 19,
+      backgroundColor: hpcBlue,
+      child: Text(
+        _getUserInitials(userName),
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 13,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
+  }
+
+  // =====================================================
+  // HOME FEATURES
+  // =====================================================
+
+  final List<Map<String, dynamic>> features = [
+    {
+      'title': 'Ask Anything',
+      'subtitle': 'Ask questions and get answers',
+      'icon': Icons.chat_bubble_outline,
+      'prompt': 'Hello HPC Smart AI, help me.',
+    },
+    {
+      'title': 'Business Help',
+      'subtitle': 'Grow and manage your business',
+      'icon': Icons.business_center_outlined,
+      'prompt': 'Help me with my business.',
+    },
+    {
+      'title': 'Code Analysis',
+      'subtitle': 'Review and audit your code',
+      'icon': Icons.code,
+      'prompt': 'I want to analyze my code.',
+    },
+    {
+      'title': 'Documents',
+      'subtitle': 'Understand your documents',
+      'icon': Icons.description_outlined,
+      'prompt': 'I want help with a document.',
+    },
+  ];
+
+  // =====================================================
+  // INITIALIZE SESSION
+  // =====================================================
+
+  @override
+  void initState() {
+    super.initState();
+    _initialize();
+  }
+
+  Future<void> _initialize() async {
+    try {
+      await HpcApi.loadSession();
+    } catch (e) {
+      debugPrint('Session loading error: $e');
+    }
+
+    if (mounted) {
+      setState(() {
+        loadingSession = false;
+      });
+    }
+  }
+    // =====================================================
+  // SEND AI MESSAGE
+  // =====================================================
+
+  Future<void> sendMessage([String? suggestedMessage]) async {
+    final message = (suggestedMessage ?? controller.text).trim();
+
+    if (message.isEmpty || sending) return;
+
+    // Login check
+    if (HpcApi.token == null) {
+      showPageMessage(
+        context,
+        'AI Chat use karne ke liye pehle Login karein.',
+      );
+
+      await openPage('Login / Register');
+      return;
+    }
+
+    // Business connection check
+    if (HpcApi.businessId == null) {
+      showPageMessage(
+        context,
+        'Pehle apna Business / Website connect karein.',
+      );
+
+      await openPage('Connect Website');
+      return;
+    }
+
+    setState(() {
+      messages.add({
+        'text': message,
+        'isUser': true,
+      });
+
+      controller.clear();
+      sending = true;
+    });
+
+    _scrollToBottom();
+
+    try {
+      final result = await HpcApi.sendAIMessage(
+        id: HpcApi.businessId!,
+        chatId: chatId,
+        message: message,
+      );
+
+      final answer = result['answer']?.toString() ??
+          'AI ne koi jawab nahi diya.';
+
+      final returnedChatId = result['chat_id'];
+
+      if (returnedChatId != null) {
+        chatId = int.tryParse(
+              returnedChatId.toString(),
+            ) ??
+            chatId;
+      }
+
+      if (!mounted) return;
+
+      setState(() {
+        messages.add({
+          'text': answer,
+          'isUser': false,
+        });
+      });
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        messages.add({
+          'text': 'AI se jawab nahi mil saka.\n${e.toString()}',
+          'isUser': false,
+        });
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          sending = false;
+        });
+
+        _scrollToBottom();
+      }
+    }
+  }
+
+  // =====================================================
+  // SCROLL CHAT TO BOTTOM
+  // =====================================================
+
+  void _scrollToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !scrollController.hasClients) return;
+
+      scrollController.animateTo(
+        scrollController.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      );
+    });
+  }
+    // =====================================================
+  // HOME SCREEN UI
+  // =====================================================
+
+  Widget _homeScreen() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+
+          const SizedBox(height: 20),
+
+          // AI ICON
+          Container(
+            width: 95,
+            height: 95,
+            decoration: BoxDecoration(
+              color: const Color(0xFFE8F0FF),
+              borderRadius: BorderRadius.circular(24),
+            ),
+            child: const Icon(
+              Icons.auto_awesome,
+              size: 43,
+              color: hpcBlue,
+            ),
+          ),
+
+          const SizedBox(height: 20),
+
+          const Text(
+            'Hello! Welcome to',
+            style: TextStyle(
+              fontSize: 19,
+              color: Colors.black54,
+            ),
+          ),
+
+          const SizedBox(height: 5),
+
+          const Text(
+            'HPC Smart AI',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 29,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF17243A),
+            ),
+          ),
+
+          const SizedBox(height: 10),
+
+          const Text(
+            'Your intelligent assistant for questions, business, '
+            'documents and technology.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 14,
+              color: Colors.black54,
+              height: 1.5,
+            ),
+          ),
+
+          const SizedBox(height: 30),
+
+          const Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              'Explore what you can do',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 17,
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 14),
+
+          // FEATURE CARDS
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: features.length,
+            gridDelegate:
+                const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              crossAxisSpacing: 12,
+              mainAxisSpacing: 12,
+              childAspectRatio: 1.05,
+            ),
+            itemBuilder: (context, index) {
+              final feature = features[index];
 
               return InkWell(
                 borderRadius: BorderRadius.circular(18),
-                onTap: () => sendMessage(feature['prompt'] as String),
+                onTap: () =>
+                    sendMessage(feature['prompt'] as String),
                 child: Container(
                   padding: const EdgeInsets.all(15),
                   decoration: BoxDecoration(
@@ -850,7 +1168,9 @@ class _HomeScreenState extends State<HomeScreen> {
                         color: hpcBlue,
                         size: 27,
                       ),
+
                       const Spacer(),
+
                       Text(
                         feature['title'] as String,
                         style: const TextStyle(
@@ -858,7 +1178,9 @@ class _HomeScreenState extends State<HomeScreen> {
                           fontSize: 15,
                         ),
                       ),
+
                       const SizedBox(height: 5),
+
                       Text(
                         feature['subtitle'] as String,
                         style: const TextStyle(
@@ -872,20 +1194,30 @@ class _HomeScreenState extends State<HomeScreen> {
               );
             },
           ),
+
           const SizedBox(height: 20),
+
           Text(
             HpcApi.token == null
                 ? 'Login karke apna AI workspace shuru karein.'
                 : HpcApi.businessId == null
                     ? 'AI use karne ke liye pehle website connect karein.'
                     : 'What would you like help with today?',
-            style: const TextStyle(color: Colors.black54, fontSize: 13),
+            style: const TextStyle(
+              color: Colors.black54,
+              fontSize: 13,
+            ),
             textAlign: TextAlign.center,
           ),
+
+          const SizedBox(height: 20),
         ],
       ),
     );
   }
+    // =====================================================
+  // CHAT SCREEN
+  // =====================================================
 
   Widget _chatScreen() {
     return ListView.builder(
@@ -897,12 +1229,15 @@ class _HomeScreenState extends State<HomeScreen> {
         final isUser = message['isUser'] as bool;
 
         return Align(
-          alignment:
-              isUser ? Alignment.centerRight : Alignment.centerLeft,
+          alignment: isUser
+              ? Alignment.centerRight
+              : Alignment.centerLeft,
           child: Container(
             margin: const EdgeInsets.only(bottom: 12),
             padding: const EdgeInsets.all(14),
-            constraints: const BoxConstraints(maxWidth: 310),
+            constraints: const BoxConstraints(
+              maxWidth: 310,
+            ),
             decoration: BoxDecoration(
               color: isUser ? hpcBlue : Colors.white,
               borderRadius: BorderRadius.circular(17),
@@ -910,7 +1245,9 @@ class _HomeScreenState extends State<HomeScreen> {
             child: Text(
               message['text'] as String,
               style: TextStyle(
-                color: isUser ? Colors.white : Colors.black87,
+                color: isUser
+                    ? Colors.white
+                    : Colors.black87,
               ),
             ),
           ),
@@ -919,6 +1256,10 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  // =====================================================
+  // MESSAGE INPUT
+  // =====================================================
+
   Widget _messageInput() {
     return SafeArea(
       child: Container(
@@ -926,7 +1267,9 @@ class _HomeScreenState extends State<HomeScreen> {
         decoration: const BoxDecoration(
           color: Colors.white,
           border: Border(
-            top: BorderSide(color: Color(0xFFE8ECF2)),
+            top: BorderSide(
+              color: Color(0xFFE8ECF2),
+            ),
           ),
         ),
         child: Row(
@@ -942,7 +1285,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   hintText: 'Message HPC Smart AI...',
                   filled: true,
                   fillColor: hpcBackground,
-                  contentPadding: const EdgeInsets.symmetric(
+                  contentPadding:
+                      const EdgeInsets.symmetric(
                     horizontal: 17,
                     vertical: 13,
                   ),
@@ -953,7 +1297,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
             ),
+
             const SizedBox(width: 9),
+
             CircleAvatar(
               radius: 24,
               backgroundColor: hpcBlue,
@@ -970,8 +1316,7 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
-}
-
+  
 // =====================================================
 // LOGIN / REGISTER
 // =====================================================
