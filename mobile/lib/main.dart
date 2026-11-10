@@ -1155,7 +1155,18 @@ class _LoginPageState extends State<LoginPage> {
   }
 }
 
-// =====================================================
+
+    } catch (e) {
+      if (mounted) showPageMessage(context, e.toString());
+    } finally {
+      if (mounted) setState(() => loading = false);
+    }
+  }
+
+  Future<void> selectBusiness(Map<String, dynamic> item) async {
+    final id = int.tryParse((item['id'] ?? '').toString());
+
+    if (i// =====================================================
 // CONNECT WEBSITE / BUSINESS
 // =====================================================
 
@@ -1272,18 +1283,7 @@ class _ConnectWebsitePageState extends State<ConnectWebsitePage> {
           result['message']?.toString() ??
               'Business connection request submitted.',
         );
-      }
-    } catch (e) {
-      if (mounted) showPageMessage(context, e.toString());
-    } finally {
-      if (mounted) setState(() => loading = false);
-    }
-  }
-
-  Future<void> selectBusiness(Map<String, dynamic> item) async {
-    final id = int.tryParse((item['id'] ?? '').toString());
-
-    if (id == null) {
+      }d == null) {
       showPageMessage(context, 'Business ID nahi mila.');
       return;
     }
@@ -1323,30 +1323,242 @@ class _ConnectWebsitePageState extends State<ConnectWebsitePage> {
                 decoration: const InputDecoration(
                   hintText: 'Enter business name',
                   prefixIcon: Icon(Icons.business),
-                  border: OutlineInputBorder(),
-                ),
+// =====================================================
+// CONNECT WEBSITE / BUSINESS
+// =====================================================
+
+class ConnectWebsitePage extends StatefulWidget {
+  const ConnectWebsitePage({super.key});
+
+  @override
+  State<ConnectWebsitePage> createState() =>
+      _ConnectWebsitePageState();
+}
+
+class _ConnectWebsitePageState extends State<ConnectWebsitePage> {
+  final nameController = TextEditingController();
+  final urlController = TextEditingController();
+
+  bool loading = false;
+  List<Map<String, dynamic>> businesses = [];
+
+  @override
+  void initState() {
+    super.initState();
+    loadBusinesses();
+  }
+
+  @override
+  void dispose() {
+    nameController.dispose();
+    urlController.dispose();
+    super.dispose();
+  }
+
+  Future<void> openLogin() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const LoginPage(),
+      ),
+    );
+
+    if (!mounted) return;
+
+    // Login ke baad businesses load karein.
+    // Name aur URL controllers mein pehle se safe rahenge.
+    if (HpcApi.token != null) {
+      await loadBusinesses();
+      if (mounted) setState(() {});
+    }
+  }
+
+  Future<void> loadBusinesses() async {
+    if (HpcApi.token == null) return;
+
+    setState(() => loading = true);
+
+    try {
+      final list = await HpcApi.getBusinesses();
+
+      if (!mounted) return;
+
+      setState(() {
+        businesses = list;
+      });
+
+      if (HpcApi.businessId == null && businesses.isNotEmpty) {
+        final firstId = int.tryParse(
+          (businesses.first['id'] ?? '').toString(),
+        );
+
+        if (firstId != null) {
+          await HpcApi.selectBusiness(firstId);
+        }
+      }
+    } catch (e) {
+      if (mounted) showPageMessage(context, e.toString());
+    } finally {
+      if (mounted) setState(() => loading = false);
+    }
+  }
+
+  Future<void> createBusiness() async {
+    if (HpcApi.token == null) {
+      showPageMessage(context, 'Pehle Login karein.');
+      return;
+    }
+
+    final name = nameController.text.trim();
+    final website = urlController.text.trim();
+
+    if (name.isEmpty) {
+      showPageMessage(context, 'Business name enter karein.');
+      return;
+    }
+
+    if (website.isNotEmpty &&
+        (!website.startsWith('https://') ||
+            Uri.tryParse(website)?.host.isEmpty != false)) {
+      showPageMessage(
+        context,
+        'Website URL HTTPS se shuru hona chahiye.',
+      );
+      return;
+    }
+
+    setState(() => loading = true);
+
+    try {
+      final result = await HpcApi.createBusiness(
+        name: name,
+        websiteUrl: website,
+      );
+
+      dynamic business = result['business'] ?? result['data'];
+
+      if (business is Map) {
+        final id = int.tryParse(
+          (business['id'] ?? '').toString(),
+        );
+
+        if (id != null) {
+          await HpcApi.selectBusiness(id);
+        }
+      }
+
+      nameController.clear();
+      urlController.clear();
+
+      await loadBusinesses();
+
+      if (mounted) {
+        showPageMessage(
+          context,
+          result['message']?.toString() ??
+              'Business connection request submitted.',
+        );
+      }
+    } catch (e) {
+      if (mounted) showPageMessage(context, e.toString());
+    } finally {
+      if (mounted) setState(() => loading = false);
+    }
+  }
+
+  Future<void> selectBusiness(Map<String, dynamic> item) async {
+    final id = int.tryParse((item['id'] ?? '').toString());
+
+    if (id == null) {
+      showPageMessage(context, 'Business ID nahi mila.');
+      return;
+    }
+
+    await HpcApi.selectBusiness(id);
+
+    if (mounted) {
+      setState(() {});
+      showPageMessage(context, 'Business selected.');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isLoggedIn = HpcApi.token != null;
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Connect Website')),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(22),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const PageHeader(
+              title: 'Connect Your Website',
+              subtitle: 'Connect your business to HPC Smart AI',
+              icon: Icons.language,
+            ),
+
+            const Text(
+              'Business Name',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+
+            TextField(
+              controller: nameController,
+              decoration: const InputDecoration(
+                hintText: 'Enter business name',
+                prefixIcon: Icon(Icons.business),
+                border: OutlineInputBorder(),
               ),
-              const SizedBox(height: 15),
-              const Text(
-                'Website URL (Optional)',
-                style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+
+            const SizedBox(height: 15),
+
+            const Text(
+              'Website URL (Optional)',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+
+            TextField(
+              controller: urlController,
+              keyboardType: TextInputType.url,
+              decoration: const InputDecoration(
+                hintText: 'https://example.com',
+                prefixIcon: Icon(Icons.link),
+                border: OutlineInputBorder(),
               ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: urlController,
-                keyboardType: TextInputType.url,
-                decoration: const InputDecoration(
-                  hintText: 'https://example.com',
-                  prefixIcon: Icon(Icons.link),
-                  border: OutlineInputBorder(),
-                ),
+            ),
+
+            const SizedBox(height: 18),
+
+            pageButton(
+              loading
+                  ? 'Please wait...'
+                  : isLoggedIn
+                      ? 'Create / Connect Business'
+                      : 'Login to Connect Website',
+              loading
+                  ? null
+                  : isLoggedIn
+                      ? createBusiness
+                      : openLogin,
+            ),
+
+            if (!isLoggedIn) ...[
+              const SizedBox(height: 12),
+              pageNotice(
+                'Pehle Business Name aur Website URL bharein. '
+                'Connect karne ke liye Login zaroori hai. '
+                'Login ke baad aapki bhari hui information bani rahegi.',
               ),
-              const SizedBox(height: 18),
-              pageButton(
-                loading ? 'Please wait...' : 'Create / Connect Business',
-                loading ? null : createBusiness,
-              ),
+            ],
+
+            if (isLoggedIn) ...[
               const SizedBox(height: 25),
+
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -1358,23 +1570,28 @@ class _ConnectWebsitePageState extends State<ConnectWebsitePage> {
                     ),
                   ),
                   IconButton(
-                    onPressed: loadBusinesses,
-                    icon: const Icon(Icons.refresh, color: hpcBlue),
+                    onPressed: loading ? null : loadBusinesses,
+                    icon: const Icon(
+                      Icons.refresh,
+                      color: hpcBlue,
+                    ),
                   ),
                 ],
               ),
+
               if (businesses.isEmpty)
                 const Text(
                   'Abhi koi business list mein nahi hai.',
                   style: TextStyle(color: Colors.black54),
                 ),
+
               ...businesses.map((item) {
                 final id = int.tryParse(
                   (item['id'] ?? '').toString(),
                 );
 
-                final selected = id != null &&
-                    id == HpcApi.businessId;
+                final selected =
+                    id != null && id == HpcApi.businessId;
 
                 return Card(
                   child: ListTile(
@@ -1390,14 +1607,19 @@ class _ConnectWebsitePageState extends State<ConnectWebsitePage> {
                           'Website not specified',
                     ),
                     trailing: selected
-                        ? const Icon(Icons.check_circle, color: Colors.green)
+                        ? const Icon(
+                            Icons.check_circle,
+                            color: Colors.green,
+                          )
                         : const Icon(Icons.chevron_right),
                     onTap: () => selectBusiness(item),
                   ),
                 );
               }),
             ],
+
             const SizedBox(height: 15),
+
             pageNotice(
               'Website connection read-only mode mein rahega. '
               'AI website par bina approval koi change nahi karega.',
