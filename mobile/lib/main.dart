@@ -1835,50 +1835,59 @@ class _ConnectWebsitePageState extends State<ConnectWebsitePage> {
                 ),
 
               ...businesses.map((item) {
-                final id = int.tryParse(
-                  (item['id'] ?? '').toString(),
-                );
+  final id = int.tryParse(
+    (item['id'] ?? '').toString(),
+  );
 
-                final selected =
-                    id != null && id == HpcApi.businessId;
+  final selected =
+      id != null && id == HpcApi.businessId;
 
-                return Card(
-                  child: ListTile(
-                    leading: const Icon(
-                      Icons.business,
-                      color: hpcBlue,
-                    ),
-                    title: Text(
-                      item['name']?.toString() ?? 'Business',
-                    ),
-                    subtitle: Text(
-                      item['website_url']?.toString() ??
-                          'Website not specified',
-                    ),
-                    trailing: selected
-                        ? const Icon(
-                            Icons.check_circle,
-                            color: Colors.green,
-                          )
-                        : const Icon(Icons.chevron_right),
-                    onTap: () => selectBusiness(item),
-                  ),
-                );
-              }),
-            ],
-
-            const SizedBox(height: 15),
-
-            pageNotice(
-              'Website connection read-only mode mein rahega. '
-              'AI website par bina approval koi change nahi karega.',
-            ),
-          ],
-        ),
+  return Card(
+    child: ListTile(
+      leading: const Icon(
+        Icons.business,
+        color: hpcBlue,
       ),
-    );
-  }
-}
+      title: Text(
+        item['name']?.toString() ?? 'Business',
+      ),
+      subtitle: Text(
+        item['website_url']?.toString() ??
+            'Website not specified',
+      ),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (selected)
+            const Icon(
+              Icons.check_circle,
+              color: Colors.green,
+            ),
+          TextButton(
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => BusinessDashboardPage(
+                    business: item,
+                  ),
+                ),
+              );
+            },
+            child: const Text(
+              'View Status',
+              style: TextStyle(
+                color: hpcBlue,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
+      onTap: () => selectBusiness(item),
+    ),
+  );
+}),
 
 // =====================================================
 // CONNECT AI
