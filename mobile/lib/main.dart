@@ -1316,7 +1316,534 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
-  
+    // =====================================================
+  // NEW CHAT
+  // =====================================================
+
+  void newChat() {
+    setState(() {
+      messages.clear();
+      controller.clear();
+      chatId = 0;
+    });
+  }
+
+  // =====================================================
+  // OPEN APP PAGES
+  // =====================================================
+
+  Future<void> openPage(String title) async {
+    Widget page;
+
+    switch (title) {
+      case 'Login / Register':
+        page = const LoginPage();
+        break;
+
+      case 'Connect AI':
+        page = const ConnectAIPage();
+        break;
+
+      case 'Connect Website':
+        page = const ConnectWebsitePage();
+        break;
+
+      case 'Documents':
+        page = const DocumentsPage();
+        break;
+
+      case 'Chat History':
+        page = ChatHistoryPage(messages: messages);
+        break;
+
+      case 'Settings':
+        page = const SettingsPage();
+        break;
+
+      case 'Help & Support':
+        page = const HelpSupportPage();
+        break;
+
+      default:
+        page = const PlaceholderPage(title: 'Coming Soon');
+    }
+
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => page),
+    );
+
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  // =====================================================
+  // PROFILE SCREEN
+  // =====================================================
+
+  Future<void> _openProfile() async {
+    if (HpcApi.token == null) {
+      await openPage('Login / Register');
+      return;
+    }
+
+    if (!mounted) return;
+
+    final user = HpcApi.currentUser ?? {};
+
+    final userName =
+        user['name']?.toString().trim().isNotEmpty == true
+            ? user['name'].toString()
+            : 'User';
+
+    final email = user['email']?.toString() ?? '';
+
+    await showModalBottomSheet<void>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(24),
+        ),
+      ),
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(22),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'My Profile',
+                  style: TextStyle(
+                    fontSize: 21,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+
+                const SizedBox(height: 22),
+
+                _profileAvatar(userName),
+
+                const SizedBox(height: 12),
+
+                Text(
+                  userName,
+                  style: const TextStyle(
+                    fontSize: 19,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+
+                const SizedBox(height: 5),
+
+                Text(
+                  email.isEmpty ? 'Email not available' : email,
+                  style: const TextStyle(
+                    color: Colors.black54,
+                  ),
+                ),
+
+                const SizedBox(height: 12),
+
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Container(
+                      width: 9,
+                      height: 9,
+                      decoration: const BoxDecoration(
+                        color: Colors.green,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 7),
+                    const Text(
+                      'Logged In',
+                      style: TextStyle(
+                        color: Colors.green,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 25),
+
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: OutlinedButton.icon(
+                    onPressed: () async {
+                      Navigator.pop(sheetContext);
+
+                      await HpcApi.logout();
+
+                      if (!mounted) return;
+
+                      newChat();
+
+                      setState(() {});
+                    },
+                    icon: const Icon(
+                      Icons.logout,
+                      color: Colors.red,
+                    ),
+                    label: const Text(
+                      'Logout',
+                      style: TextStyle(
+                        color: Colors.red,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(
+                        color: Colors.red,
+                      ),
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 10),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  // =====================================================
+  // PROFILE ACTION
+  // =====================================================
+
+  Widget _profileAction() {
+    if (HpcApi.token == null) {
+      return TextButton(
+        onPressed: () => openPage('Login / Register'),
+        child: const Text(
+          'Login / Register',
+          style: TextStyle(
+            color: hpcBlue,
+            fontWeight: FontWeight.bold,
+            fontSize: 12,
+          ),
+        ),
+      );
+    }
+
+    final userName =
+        HpcApi.currentUser?['name']?.toString() ?? 'User';
+
+    return Padding(
+      padding: const EdgeInsets.only(right: 12),
+      child: InkWell(
+        onTap: _openProfile,
+        borderRadius: BorderRadius.circular(25),
+        child: Row(
+          children: [
+            Stack(
+              children: [
+                _profileAvatar(userName),
+                Positioned(
+                  right: 0,
+                  bottom: 0,
+                  child: Container(
+                    width: 11,
+                    height: 11,
+                    decoration: BoxDecoration(
+                      color: Colors.green,
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: Colors.white,
+                        width: 1.5,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(width: 5),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // =====================================================
+  // DRAWER MENU ITEM
+  // =====================================================
+
+  Widget _menuItem(
+    IconData icon,
+    String title,
+    String subtitle,
+  ) {
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(
+        horizontal: 20,
+        vertical: 3,
+      ),
+      leading: Icon(
+        icon,
+        color: hpcBlue,
+        size: 24,
+      ),
+      title: Text(
+        title,
+        style: const TextStyle(
+          fontWeight: FontWeight.w600,
+          fontSize: 14,
+        ),
+      ),
+      subtitle: Text(
+        subtitle,
+        style: const TextStyle(
+          fontSize: 11,
+          color: Colors.black54,
+        ),
+      ),
+      trailing: const Icon(
+        Icons.chevron_right,
+        color: Colors.grey,
+        size: 20,
+      ),
+      onTap: () {
+        Navigator.pop(context);
+
+        if (title == 'New Chat') {
+          newChat();
+        } else {
+          openPage(title);
+        }
+      },
+    );
+  }
+
+  // =====================================================
+  // DISPOSE
+  // =====================================================
+
+  @override
+  void dispose() {
+    controller.dispose();
+    scrollController.dispose();
+    super.dispose();
+  }
+
+  // =====================================================
+  // MAIN BUILD
+  // =====================================================
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      drawer: Drawer(
+        child: SafeArea(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(22),
+                color: hpcBlue,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const CircleAvatar(
+                      radius: 29,
+                      backgroundColor: Colors.white,
+                      child: Icon(
+                        Icons.smart_toy_outlined,
+                        color: hpcBlue,
+                        size: 34,
+                      ),
+                    ),
+
+                    const SizedBox(height: 12),
+
+                    const Text(
+                      'HPC Smart AI',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 21,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+
+                    Text(
+                      HpcApi.currentUser?['name']?.toString() ??
+                          'Your Intelligent Assistant',
+                      style: const TextStyle(
+                        color: Colors.white70,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              _menuItem(
+                Icons.add,
+                'New Chat',
+                'Start a fresh conversation',
+              ),
+
+              _menuItem(
+                Icons.login,
+                'Login / Register',
+                'Access or create your account',
+              ),
+
+              _menuItem(
+                Icons.auto_awesome,
+                'Connect AI',
+                'Set up your AI provider',
+              ),
+
+              _menuItem(
+                Icons.language,
+                'Connect Website',
+                'Connect your business website',
+              ),
+
+              _menuItem(
+                Icons.folder_outlined,
+                'Documents',
+                'Upload and manage your files',
+              ),
+
+              _menuItem(
+                Icons.history,
+                'Chat History',
+                'View your conversations',
+              ),
+
+              _menuItem(
+                Icons.settings_outlined,
+                'Settings',
+                'Manage app preferences',
+              ),
+
+              _menuItem(
+                Icons.help_outline,
+                'Help & Support',
+                'Get help and submit complaints',
+              ),
+
+              const Spacer(),
+
+              if (HpcApi.token != null)
+                ListTile(
+                  leading: const Icon(
+                    Icons.logout,
+                    color: Colors.red,
+                  ),
+                  title: const Text('Logout'),
+                  onTap: () async {
+                    Navigator.pop(context);
+
+                    await HpcApi.logout();
+
+                    if (!mounted) return;
+
+                    newChat();
+
+                    setState(() {});
+                  },
+                ),
+
+              const Divider(),
+
+              const Padding(
+                padding: EdgeInsets.all(16),
+                child: Text(
+                  'HPC Smart AI • Version 1.0',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.grey),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.white,
+        elevation: 0,
+
+        leading: Builder(
+          builder: (context) => IconButton(
+            icon: const Icon(Icons.menu),
+            onPressed: () {
+              Scaffold.of(context).openDrawer();
+            },
+          ),
+        ),
+
+        title: const Row(
+          children: [
+            CircleAvatar(
+              radius: 17,
+              backgroundColor: Color(0xFFEAF1FF),
+              child: Icon(
+                Icons.smart_toy_outlined,
+                color: hpcBlue,
+              ),
+            ),
+
+            SizedBox(width: 10),
+
+            Text(
+              'HPC Smart AI',
+              style: TextStyle(
+                color: Color(0xFF17243A),
+                fontWeight: FontWeight.bold,
+                fontSize: 18,
+              ),
+            ),
+          ],
+        ),
+
+        actions: [
+          IconButton(
+            tooltip: 'New Chat',
+            onPressed: newChat,
+            icon: const Icon(
+              Icons.edit_square,
+              color: hpcBlue,
+            ),
+          ),
+
+          _profileAction(),
+        ],
+      ),
+
+      body: loadingSession
+          ? const Center(
+              child: CircularProgressIndicator(
+                color: hpcBlue,
+              ),
+            )
+          : Column(
+              children: [
+                Expanded(
+                  child: messages.isEmpty
+                      ? _homeScreen()
+                      : _chatScreen(),
+                ),
+
+                if (sending)
+                  const LinearProgressIndicator(
+                    minHeight: 2,
+                    color: hpcBlue,
+                  ),
+
+                _messageInput(),
+              ],
+            ),
+    );
+  }
+}
 // =====================================================
 // LOGIN / REGISTER
 // =====================================================
