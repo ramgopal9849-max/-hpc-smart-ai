@@ -1897,9 +1897,9 @@ class _ConnectWebsitePageState extends State<ConnectWebsitePage> {
   );
 }),
             ],
+            ],
           ),
         ),
-      ),
     );
   }            
 }
