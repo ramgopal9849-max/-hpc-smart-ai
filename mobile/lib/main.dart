@@ -371,7 +371,8 @@ class PageHeader extends StatelessWidget {
         const SizedBox(height: 25),
       ],
     );
-  }           
+  }
+}           
     
 // =====================================================
 // HOME SCREEN - PART 1
