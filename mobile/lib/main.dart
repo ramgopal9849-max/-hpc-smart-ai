@@ -2442,3 +2442,140 @@ class PlaceholderPage extends StatelessWidget {
     );
   }
 }
+
+// =====================================================
+// BUSINESS DASHBOARD
+// =====================================================
+
+class BusinessDashboardPage extends StatelessWidget {
+  final Map<String, dynamic> business;
+
+  const BusinessDashboardPage({
+    super.key,
+    required this.business,
+  });
+
+  Widget infoCard({
+    required IconData icon,
+    required String title,
+    required String value,
+  }) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: ListTile(
+        leading: Icon(icon, color: hpcBlue),
+        title: Text(
+          title,
+          style: const TextStyle(
+            fontSize: 13,
+            color: Colors.grey,
+          ),
+        ),
+        subtitle: Text(
+          value,
+          style: const TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final name =
+        business['name']?.toString() ?? 'Business';
+
+    final website =
+        business['website_url']?.toString() ?? '';
+
+    final status =
+        business['status']?.toString() ??
+        business['connection_status']?.toString() ??
+        'Status not available';
+
+    final id = business['id']?.toString() ?? 'Not available';
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Business Dashboard'),
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: hpcBlue,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(
+                    Icons.business,
+                    color: Colors.white,
+                    size: 38,
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Business Overview',
+                    style: TextStyle(color: Colors.white70),
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    name,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 22),
+            const Text(
+              'Business Information',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 12),
+            infoCard(
+              icon: Icons.business,
+              title: 'Business Name',
+              value: name,
+            ),
+            infoCard(
+              icon: Icons.language,
+              title: 'Website URL',
+              value: website.isEmpty
+                  ? 'Website not specified'
+                  : website,
+            ),
+            infoCard(
+              icon: Icons.verified_outlined,
+              title: 'Connection Status',
+              value: status,
+            ),
+            infoCard(
+              icon: Icons.numbers,
+              title: 'Business ID',
+              value: id,
+            ),
+            const SizedBox(height: 12),
+            pageNotice(
+              'Website read-only mode mein rahegi. '
+              'Admin ki permission ke bina koi change nahi hoga.',
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
