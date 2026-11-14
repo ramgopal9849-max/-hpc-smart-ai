@@ -807,140 +807,8 @@ You are HPC Smart AI.
     );
   }
 
-// ============================================================
-// PART 5: CHAT SCREEN - LOCAL QWEN AI INTEGRATION
-// ============================================================
-
-// ============================================================
-// SEND MESSAGE TO LOCAL QWEN AI
-// ============================================================
-
-Future<void> sendMessage([String? suggestedMessage]) async {
-  final message = (suggestedMessage ?? controller.text).trim();
-
-  if (message.isEmpty || sending) {
-    return;
-  }
-
-  // ----------------------------------------------------------
-  // LOGIN CHECK
-  // ----------------------------------------------------------
-
-  if (!HpcApi.isLoggedIn) {
-    showPageMessage(
-      context,
-      'AI Chat use karne ke liye pehle Login karein.',
-    );
-
-    await openPage('Login / Register');
-    return;
-  }
-
-  // ----------------------------------------------------------
-  // BUSINESS CONNECTION CHECK
-  // ----------------------------------------------------------
-
-  if (HpcApi.businessId == null) {
-    showPageMessage(
-      context,
-      'Pehle apna Business / Website connect karein.',
-    );
-
-    await openPage('Connect Website');
-    return;
-  }
-
-  // ----------------------------------------------------------
-  // SAVE USER MESSAGE
-  // ----------------------------------------------------------
-
-  setState(() {
-    messages.add({
-      'text': message,
-      'isUser': true,
-    });
-
-    controller.clear();
-
-    sending = true;
-  });
-
-  _scrollToBottom();
-
-  try {
-    // --------------------------------------------------------
-    // PREPARE CONVERSATION HISTORY
-    // --------------------------------------------------------
-
-    final List<Map<String, dynamic>> conversationHistory =
-        messages.map((item) {
-      return {
-        'text': item['text']?.toString() ?? '',
-        'isUser': item['isUser'] == true,
-      };
-    }).toList();
-
-    // --------------------------------------------------------
-    // SEND MESSAGE TO LOCAL QWEN
-    // --------------------------------------------------------
-
-    final String answer = await HpcApi.sendLocalAIMessage(
-      chatMessages: conversationHistory,
-    );
-
-    // --------------------------------------------------------
-    // CHECK WIDGET STATE
-    // --------------------------------------------------------
-
-    if (!mounted) {
-      return;
-    }
-
-    // --------------------------------------------------------
-    // DISPLAY AI ANSWER
-    // --------------------------------------------------------
-
-    setState(() {
-      messages.add({
-        'text': answer,
-        'isUser': false,
-      });
-    });
-
-    _scrollToBottom();
-  } catch (e) {
-    // --------------------------------------------------------
-    // DISPLAY ERROR
-    // --------------------------------------------------------
-
-    if (!mounted) {
-      return;
-    }
-
-    setState(() {
-      messages.add({
-        'text':
-            'HPC Smart AI se jawab nahi mil saka.\n\n'
-            '${e.toString()}',
-        'isUser': false,
-      });
-    });
-
-    _scrollToBottom();
-  } finally {
-    // --------------------------------------------------------
-    // STOP LOADING
-    // --------------------------------------------------------
-
-    if (mounted) {
-      setState(() {
-        sending = false;
-      });
-    }
-  }
 }
-
-    class HpcChatPage extends StatefulWidget {
+class HpcChatPage extends StatefulWidget {
   const HpcChatPage({super.key});
 
   @override
@@ -1401,7 +1269,7 @@ class _HpcChatPageState extends State<HpcChatPage> {
   }
 }
 
-    class HpcAuthPage extends StatefulWidget {
+class HpcAuthPage extends StatefulWidget {
   final VoidCallback onLoginSuccess;
 
   const HpcAuthPage({
@@ -1742,7 +1610,7 @@ class _HpcAuthPageState extends State<HpcAuthPage> {
   }
 }
 
-    void main() async {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   await HpcApi.loadSession();
