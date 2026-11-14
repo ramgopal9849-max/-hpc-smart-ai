@@ -1,3 +1,5 @@
+
+
 // ============================================================
 // PART 1: IMPORTS, CONFIGURATION AND SESSION FOUNDATION
 // HPC SMART AI
@@ -1395,6 +1397,347 @@ class _HpcChatPageState extends State<HpcChatPage> {
                 _buildMessageInput(),
               ],
             ),
+    );
+  }
+}
+
+    class HpcAuthPage extends StatefulWidget {
+  final VoidCallback onLoginSuccess;
+
+  const HpcAuthPage({
+    super.key,
+    required this.onLoginSuccess,
+  });
+
+  @override
+  State<HpcAuthPage> createState() => _HpcAuthPageState();
+}
+
+class _HpcAuthPageState extends State<HpcAuthPage> {
+  final _formKey = GlobalKey<FormState>();
+
+  final nameController = TextEditingController();
+  final phoneController = TextEditingController();
+  final emailController = TextEditingController();
+  final passwordController = TextEditingController();
+
+  bool isRegister = false;
+  bool isLoading = false;
+  bool obscurePassword = true;
+
+  @override
+  void dispose() {
+    nameController.dispose();
+    phoneController.dispose();
+    emailController.dispose();
+    passwordController.dispose();
+    super.dispose();
+  }
+
+  void _showMessage(String message) {
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
+  Future<void> _submit() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() {
+      isLoading = true;
+    });
+
+    try {
+      if (isRegister) {
+        final result = await HpcApi.register(
+          name: nameController.text.trim(),
+          email: emailController.text.trim(),
+          password: passwordController.text,
+          phone: phoneController.text.trim(),
+        );
+
+        if (!mounted) return;
+
+        final success = result['success'] == true;
+
+        if (success) {
+          setState(() {
+            isRegister = false;
+            passwordController.clear();
+          });
+
+          _showMessage(
+            'Registration सफल हुआ। अब अपने Account से Login करें।',
+          );
+        } else {
+          _showMessage(
+            result['message']?.toString() ??
+                'Registration पूरा नहीं हो सका।',
+          );
+        }
+      } else {
+        final result = await HpcApi.login(
+          email: emailController.text.trim(),
+          password: passwordController.text,
+        );
+
+        if (!mounted) return;
+
+        if (result['success'] == true && HpcApi.isLoggedIn) {
+          _showMessage('Login सफल हुआ।');
+
+          widget.onLoginSuccess();
+        } else {
+          _showMessage(
+            'Login नहीं हो सका। कृपया Email और Password जाँचें।',
+          );
+        }
+      }
+    } catch (e) {
+      _showMessage(
+        'Server से संपर्क नहीं हो सका। कृपया Internet जाँचें।',
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          isLoading = false;
+        });
+      }
+    }
+  }
+
+  Widget _buildTextField({
+    required TextEditingController controller,
+    required String label,
+    required IconData icon,
+    TextInputType keyboardType = TextInputType.text,
+    bool isPassword = false,
+    String? Function(String?)? validator,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: TextFormField(
+        controller: controller,
+        keyboardType: keyboardType,
+        obscureText: isPassword && obscurePassword,
+        validator: validator,
+        decoration: InputDecoration(
+          labelText: label,
+          prefixIcon: Icon(icon, color: hpcBlue),
+          suffixIcon: isPassword
+              ? IconButton(
+                  icon: Icon(
+                    obscurePassword
+                        ? Icons.visibility_outlined
+                        : Icons.visibility_off_outlined,
+                  ),
+                  onPressed: () {
+                    setState(() {
+                      obscurePassword = !obscurePassword;
+                    });
+                  },
+                )
+              : null,
+          filled: true,
+          fillColor: const Color(0xFFF8FAFC),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(13),
+            borderSide: const BorderSide(
+              color: Color(0xFFE4E7EC),
+            ),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(13),
+            borderSide: const BorderSide(
+              color: Color(0xFFE4E7EC),
+            ),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(13),
+            borderSide: const BorderSide(
+              color: hpcBlue,
+              width: 1.5,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        foregroundColor: const Color(0xFF172033),
+        elevation: 0,
+        title: const Text(
+          appName,
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ),
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Icon(
+                    Icons.account_circle_outlined,
+                    size: 68,
+                    color: hpcBlue,
+                  ),
+                  const SizedBox(height: 18),
+                  Text(
+                    isRegister ? 'Create Account' : 'Welcome Back',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 25,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF172033),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    isRegister
+                        ? 'HPC Smart AI पर अपना Customer Account बनाएँ'
+                        : 'अपने Account में Login करें',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: Colors.black54,
+                      fontSize: 14,
+                    ),
+                  ),
+                  const SizedBox(height: 30),
+
+                  if (isRegister) ...[
+                    _buildTextField(
+                      controller: nameController,
+                      label: 'पूरा नाम',
+                      icon: Icons.person_outline,
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return 'कृपया अपना नाम लिखें।';
+                        }
+                        return null;
+                      },
+                    ),
+                    _buildTextField(
+                      controller: phoneController,
+                      label: 'Mobile Number',
+                      icon: Icons.phone_outlined,
+                      keyboardType: TextInputType.phone,
+                      validator: (value) {
+                        final phone = value?.trim() ?? '';
+
+                        if (!RegExp(r'^[0-9]{10}$').hasMatch(phone)) {
+                          return '10 अंकों का Mobile Number लिखें।';
+                        }
+
+                        return null;
+                      },
+                    ),
+                  ],
+
+                  _buildTextField(
+                    controller: emailController,
+                    label: 'Email Address',
+                    icon: Icons.email_outlined,
+                    keyboardType: TextInputType.emailAddress,
+                    validator: (value) {
+                      final email = value?.trim() ?? '';
+
+                      if (!RegExp(
+                        r'^[^@\s]+@[^@\s]+\.[^@\s]+$',
+                      ).hasMatch(email)) {
+                        return 'कृपया सही Email Address लिखें।';
+                      }
+
+                      return null;
+                    },
+                  ),
+
+                  _buildTextField(
+                    controller: passwordController,
+                    label: 'Password',
+                    icon: Icons.lock_outline,
+                    isPassword: true,
+                    validator: (value) {
+                      if (value == null || value.length < 6) {
+                        return 'Password कम से कम 6 अक्षर का होना चाहिए।';
+                      }
+
+                      return null;
+                    },
+                  ),
+
+                  const SizedBox(height: 8),
+
+                  SizedBox(
+                    height: 52,
+                    child: ElevatedButton(
+                      onPressed: isLoading ? null : _submit,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: hpcBlue,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(13),
+                        ),
+                      ),
+                      child: isLoading
+                          ? const SizedBox(
+                              height: 22,
+                              width: 22,
+                              child: CircularProgressIndicator(
+                                color: Colors.white,
+                                strokeWidth: 2,
+                              ),
+                            )
+                          : Text(
+                              isRegister ? 'Register' : 'Login',
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 18),
+
+                  TextButton(
+                    onPressed: isLoading
+                        ? null
+                        : () {
+                            setState(() {
+                              isRegister = !isRegister;
+                              obscurePassword = true;
+                            });
+                          },
+                    child: Text(
+                      isRegister
+                          ? 'पहले से Account है? Login करें'
+                          : 'नया Account बनाना है? Register करें',
+                      style: const TextStyle(
+                        color: hpcBlue,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
