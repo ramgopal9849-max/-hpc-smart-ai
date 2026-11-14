@@ -937,3 +937,464 @@ Future<void> sendMessage([String? suggestedMessage]) async {
     }
   }
 }
+
+    class HpcChatPage extends StatefulWidget {
+  const HpcChatPage({super.key});
+
+  @override
+  State<HpcChatPage> createState() => _HpcChatPageState();
+}
+
+class _HpcChatPageState extends State<HpcChatPage> {
+  final TextEditingController messageController =
+      TextEditingController();
+
+  final ScrollController scrollController =
+      ScrollController();
+
+  final List<Map<String, dynamic>> messages = [];
+
+  bool sending = false;
+  bool loadingSession = true;
+  bool qwenConnected = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _initialize();
+  }
+
+  Future<void> _initialize() async {
+    await HpcApi.loadSession();
+
+    final connected = await HpcApi.testLocalAI();
+
+    if (!mounted) return;
+
+    setState(() {
+      loadingSession = false;
+      qwenConnected = connected;
+    });
+  }
+
+  @override
+  void dispose() {
+    messageController.dispose();
+    scrollController.dispose();
+    super.dispose();
+  }
+
+  void newChat() {
+    if (sending) return;
+
+    setState(() {
+      messages.clear();
+      messageController.clear();
+    });
+
+    _scrollToBottom();
+  }
+
+  void _scrollToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !scrollController.hasClients) return;
+
+      scrollController.animateTo(
+        scrollController.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOut,
+      );
+    });
+  }
+
+  Future<void> sendMessage() async {
+    final text = messageController.text.trim();
+
+    if (text.isEmpty || sending) return;
+
+    if (!HpcApi.isLoggedIn) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('कृपया पहले Login करें।'),
+        ),
+      );
+      return;
+    }
+
+    if (HpcApi.businessId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('पहले अपनी Website Connect करें।'),
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      messages.add({
+        'text': text,
+        'isUser': true,
+        'time': DateTime.now(),
+      });
+
+      sending = true;
+      messageController.clear();
+    });
+
+    _scrollToBottom();
+
+    try {
+      final conversationHistory = messages
+          .where((item) =>
+              item['text'] != null &&
+              item['text'].toString().trim().isNotEmpty)
+          .map((item) {
+        return {
+          'text': item['text'].toString(),
+          'isUser': item['isUser'] == true,
+        };
+      }).toList();
+
+      final answer = await HpcApi.sendLocalAIMessage(
+        chatMessages: conversationHistory,
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        messages.add({
+          'text': answer,
+          'isUser': false,
+          'time': DateTime.now(),
+        });
+      });
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        messages.add({
+          'text': 'माफ़ कीजिए, AI से जवाब प्राप्त नहीं हो सका। '
+              'कृपया Termux में Qwen Server चालू होने की जाँच करें।',
+          'isUser': false,
+          'isError': true,
+          'time': DateTime.now(),
+        });
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          sending = false;
+        });
+
+        _scrollToBottom();
+      }
+    }
+  }
+
+  Widget _buildWelcomeScreen() {
+    return Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              height: 82,
+              width: 82,
+              decoration: BoxDecoration(
+                color: hpcBlue.withOpacity(0.10),
+                borderRadius: BorderRadius.circular(24),
+              ),
+              child: const Icon(
+                Icons.smart_toy_rounded,
+                color: hpcBlue,
+                size: 46,
+              ),
+            ),
+            const SizedBox(height: 22),
+            const Text(
+              'नमस्ते! मैं HPC Smart AI हूँ',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 23,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF172033),
+              ),
+            ),
+            const SizedBox(height: 10),
+            const Text(
+              'आप मुझसे सवाल पूछ सकते हैं। '
+              'मैं आपकी सहायता करने की कोशिश करूँगा।',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 15,
+                height: 1.6,
+                color: Colors.black54,
+              ),
+            ),
+            const SizedBox(height: 28),
+            _buildSuggestion(
+              Icons.help_outline,
+              'मुझे किसी विषय की जानकारी चाहिए',
+            ),
+            _buildSuggestion(
+              Icons.business_outlined,
+              'मेरी Website के बारे में बताइए',
+            ),
+            _buildSuggestion(
+              Icons.code,
+              'मुझे Code समझने में मदद चाहिए',
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSuggestion(IconData icon, String title) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 10),
+      child: OutlinedButton.icon(
+        onPressed: sending
+            ? null
+            : () {
+                messageController.text = title;
+                sendMessage();
+              },
+        icon: Icon(icon, size: 19),
+        label: Text(
+          title,
+          textAlign: TextAlign.left,
+        ),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: const Color(0xFF344054),
+          alignment: Alignment.centerLeft,
+          padding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 15,
+          ),
+          side: const BorderSide(color: Color(0xFFE4E7EC)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(13),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMessageBubble(Map<String, dynamic> message) {
+    final isUser = message['isUser'] == true;
+    final isError = message['isError'] == true;
+
+    return Align(
+      alignment:
+          isUser ? Alignment.centerRight : Alignment.centerLeft,
+      child: Container(
+        constraints: BoxConstraints(
+          maxWidth: MediaQuery.of(context).size.width * 0.82,
+        ),
+        margin: const EdgeInsets.symmetric(
+          horizontal: 14,
+          vertical: 6,
+        ),
+        padding: const EdgeInsets.symmetric(
+          horizontal: 15,
+          vertical: 12,
+        ),
+        decoration: BoxDecoration(
+          color: isUser
+              ? hpcBlue
+              : isError
+                  ? const Color(0xFFFFF1F0)
+                  : const Color(0xFFF2F4F7),
+          borderRadius: BorderRadius.only(
+            topLeft: const Radius.circular(17),
+            topRight: const Radius.circular(17),
+            bottomLeft: Radius.circular(isUser ? 17 : 4),
+            bottomRight: Radius.circular(isUser ? 4 : 17),
+          ),
+        ),
+        child: Text(
+          message['text']?.toString() ?? '',
+          style: TextStyle(
+            fontSize: 15,
+            height: 1.5,
+            color: isUser
+                ? Colors.white
+                : isError
+                    ? const Color(0xFFB42318)
+                    : const Color(0xFF202939),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMessageInput() {
+    return SafeArea(
+      top: false,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          border: Border(
+            top: BorderSide(color: Color(0xFFEAECF0)),
+          ),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Expanded(
+              child: Container(
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF2F4F7),
+                  borderRadius: BorderRadius.circular(25),
+                ),
+                child: TextField(
+                  controller: messageController,
+                  minLines: 1,
+                  maxLines: 5,
+                  textCapitalization: TextCapitalization.sentences,
+                  keyboardType: TextInputType.multiline,
+                  onSubmitted: (_) => sendMessage(),
+                  decoration: const InputDecoration(
+                    hintText: 'HPC Smart AI से कुछ पूछें...',
+                    border: InputBorder.none,
+                    contentPadding: EdgeInsets.symmetric(
+                      horizontal: 18,
+                      vertical: 13,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 9),
+            SizedBox(
+              height: 48,
+              width: 48,
+              child: ElevatedButton(
+                onPressed: sending ? null : sendMessage,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: hpcBlue,
+                  foregroundColor: Colors.white,
+                  padding: EdgeInsets.zero,
+                  shape: const CircleBorder(),
+                ),
+                child: sending
+                    ? const SizedBox(
+                        height: 21,
+                        width: 21,
+                        child: CircularProgressIndicator(
+                          color: Colors.white,
+                          strokeWidth: 2,
+                        ),
+                      )
+                    : const Icon(
+                        Icons.send_rounded,
+                        size: 21,
+                      ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildChatBody() {
+    if (messages.isEmpty) {
+      return _buildWelcomeScreen();
+    }
+
+    return ListView.builder(
+      controller: scrollController,
+      padding: const EdgeInsets.only(top: 12, bottom: 15),
+      itemCount: messages.length + (sending ? 1 : 0),
+      itemBuilder: (context, index) {
+        if (index >= messages.length) {
+          return const Align(
+            alignment: Alignment.centerLeft,
+            child: Padding(
+              padding: EdgeInsets.symmetric(
+                horizontal: 18,
+                vertical: 12,
+              ),
+              child: SizedBox(
+                height: 20,
+                width: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: hpcBlue,
+                ),
+              ),
+            ),
+          );
+        }
+
+        return _buildMessageBubble(messages[index]);
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        foregroundColor: const Color(0xFF172033),
+        elevation: 0,
+        titleSpacing: 16,
+        title: const Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              appName,
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            Text(
+              'AI Assistant',
+              style: TextStyle(
+                fontSize: 11,
+                color: Colors.black54,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          IconButton(
+            tooltip: 'New Chat',
+            onPressed: sending ? null : newChat,
+            icon: const Icon(Icons.add_comment_outlined),
+          ),
+          const SizedBox(width: 5),
+        ],
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1),
+          child: Container(
+            height: 1,
+            color: const Color(0xFFEAECF0),
+          ),
+        ),
+      ),
+      body: loadingSession
+          ? const Center(
+              child: CircularProgressIndicator(
+                color: hpcBlue,
+              ),
+            )
+          : Column(
+              children: [
+                Expanded(
+                  child: _buildChatBody(),
+                ),
+                _buildMessageInput(),
+              ],
+            ),
+    );
+  }
+}
