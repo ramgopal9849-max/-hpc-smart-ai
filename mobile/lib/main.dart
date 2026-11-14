@@ -1741,3 +1741,201 @@ class _HpcAuthPageState extends State<HpcAuthPage> {
     );
   }
 }
+
+    void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  await HpcApi.loadSession();
+
+  runApp(const HpcSmartAIApp());
+}
+
+class HpcSmartAIApp extends StatelessWidget {
+  const HpcSmartAIApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: appName,
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        useMaterial3: true,
+        primaryColor: hpcBlue,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: hpcBlue,
+          primary: hpcBlue,
+        ),
+        scaffoldBackgroundColor: Colors.white,
+        fontFamily: 'Roboto',
+      ),
+      home: const HpcSessionGate(),
+    );
+  }
+}
+
+class HpcSessionGate extends StatefulWidget {
+  const HpcSessionGate({super.key});
+
+  @override
+  State<HpcSessionGate> createState() => _HpcSessionGateState();
+}
+
+class _HpcSessionGateState extends State<HpcSessionGate> {
+  bool checkingSession = true;
+  bool loggedIn = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkSession();
+  }
+
+  Future<void> _checkSession() async {
+    await HpcApi.loadSession();
+
+    if (!mounted) return;
+
+    setState(() {
+      loggedIn = HpcApi.isLoggedIn;
+      checkingSession = false;
+    });
+  }
+
+  void _onLoginSuccess() {
+    if (!mounted) return;
+
+    setState(() {
+      loggedIn = HpcApi.isLoggedIn;
+    });
+  }
+
+  Future<void> _logout() async {
+    await HpcApi.logout();
+
+    if (!mounted) return;
+
+    setState(() {
+      loggedIn = false;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (checkingSession) {
+      return const Scaffold(
+        backgroundColor: Colors.white,
+        body: Center(
+          child: CircularProgressIndicator(
+            color: hpcBlue,
+          ),
+        ),
+      );
+    }
+
+    if (!loggedIn) {
+      return HpcAuthPage(
+        onLoginSuccess: _onLoginSuccess,
+      );
+    }
+
+    return HpcMainPage(
+      onLogout: _logout,
+    );
+  }
+}
+
+class HpcMainPage extends StatelessWidget {
+  final Future<void> Function() onLogout;
+
+  const HpcMainPage({
+    super.key,
+    required this.onLogout,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: const HpcChatPage(),
+      drawer: Drawer(
+        child: SafeArea(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(22),
+                color: hpcBlue,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const CircleAvatar(
+                      radius: 29,
+                      backgroundColor: Colors.white,
+                      child: Icon(
+                        Icons.smart_toy_rounded,
+                        size: 34,
+                        color: hpcBlue,
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    const Text(
+                      appName,
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      HpcApi.currentUserName,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                    const Text(
+                      'Logged In',
+                      style: TextStyle(
+                        color: Colors.white70,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              ListTile(
+                leading: const Icon(Icons.chat_outlined),
+                title: const Text('New Chat'),
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => HpcMainPage(
+                        onLogout: onLogout,
+                      ),
+                    ),
+                  );
+                },
+              ),
+              const Divider(),
+              ListTile(
+                leading: const Icon(Icons.logout, color: Colors.red),
+                title: const Text(
+                  'Logout',
+                  style: TextStyle(color: Colors.red),
+                ),
+                onTap: () async {
+                  Navigator.pop(context);
+
+                  await onLogout();
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
