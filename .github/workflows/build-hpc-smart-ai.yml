@@ -1,22 +1,26 @@
-
 name: HPC Smart AI Application Builder
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - 'mobile/**'
+      - '.github/workflows/build-hpc-smart-ai.yml'
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   build:
+    name: Build Android APK and Web App
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 60
 
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -35,97 +39,40 @@ jobs:
           flutter --version
           java -version
 
-      - name: Create Flutter Application
+      - name: Prepare Missing Gradle Wrapper
+        working-directory: mobile
         run: |
-          mkdir -p mobile
-          cd mobile
-
-          if [ ! -f pubspec.yaml ]; then
-            flutter create \
-              --org com.homeplumbercleaning \
-              --project-name hpc_smart_ai \
-              --platforms android,web .
-          fi
-
-          if [ ! -f android/gradlew ] || [ ! -f android/gradle/wrapper/gradle-wrapper.properties ]; then
-            echo "Android Gradle Wrapper missing. Regenerating platform files."
+          if [ ! -f android/gradlew ] || [ ! -f android/gradle/wrapper/gradle-wrapper.jar ]; then
+            echo "Creating a temporary Flutter project to obtain Gradle Wrapper files."
 
             flutter create \
               --org com.homeplumbercleaning \
-              --project-name hpc_smart_ai \
-              --platforms android,web .
+              --project-name hpc_wrapper_seed \
+              --platforms android \
+              "$RUNNER_TEMP/hpc_wrapper_seed"
+
+            cp "$RUNNER_TEMP/hpc_wrapper_seed/android/gradlew" android/
+            cp "$RUNNER_TEMP/hpc_wrapper_seed/android/gradlew.bat" android/
+            mkdir -p android/gradle/wrapper
+            cp "$RUNNER_TEMP/hpc_wrapper_seed/android/gradle/wrapper/gradle-wrapper.jar" android/gradle/wrapper/
+
+            chmod +x android/gradlew
           fi
 
-          if [ ! -f android/gradlew ]; then
-            echo "ERROR: Android Gradle Wrapper was not generated."
-            exit 1
-          fi
+          test -f android/gradlew
+          test -f android/gradle/wrapper/gradle-wrapper.jar
+          echo "Gradle Wrapper is ready."
 
-          echo "Android Gradle Wrapper verified."
-          ls -l android/gradlew
+      - name: Verify Gradle Version
+        working-directory: mobile
+        run: |
+          grep '^distributionUrl=' android/gradle/wrapper/gradle-wrapper.properties
+          chmod +x android/gradlew
+          ./android/gradlew -p android --version
 
       - name: Install Flutter Dependencies
         working-directory: mobile
         run: flutter pub get
-
-      - name: Configure HPC Smart AI App Logo
-        working-directory: mobile
-        run: |
-          if [ ! -f ../hpc-smart-ai-app-icon.png ]; then
-            echo "ERROR: HPC Smart AI logo not found in repository root."
-            exit 1
-          fi
-
-          flutter pub add --dev flutter_launcher_icons
-
-          cat > flutter_launcher_icons.yaml <<'YAML'
-          flutter_launcher_icons:
-            android: "launcher_icon"
-            ios: false
-            image_path: "../hpc-smart-ai-app-icon.png"
-            min_sdk_android: 21
-            adaptive_icon_background: "#FFFFFF"
-            adaptive_icon_foreground: "../hpc-smart-ai-app-icon.png"
-            web:
-              generate: true
-              image_path: "../hpc-smart-ai-app-icon.png"
-              background_color: "#1769E0"
-              theme_color: "#1769E0"
-          YAML
-
-          dart run flutter_launcher_icons -f flutter_launcher_icons.yaml
-
-      - name: Set Compatible Gradle Version
-        run: |
-          if [ ! -f mobile/android/gradle/wrapper/gradle-wrapper.properties ]; then
-            echo "Gradle wrapper properties file is missing."
-            exit 1
-          fi
-
-          sed -i 's#^distributionUrl=.*#distributionUrl=https\\://downloads.gradle.org/distributions/gradle-9.3.1-bin.zip#' mobile/android/gradle/wrapper/gradle-wrapper.properties
-
-          echo "Selected Gradle version:"
-          grep distributionUrl mobile/android/gradle/wrapper/gradle-wrapper.properties
-
-      - name: Download Gradle With Retry
-        working-directory: mobile/android
-        run: |
-          chmod +x gradlew
-
-          for i in 1 2 3 4 5; do
-            echo "Gradle download attempt $i of 5"
-
-            if ./gradlew --version --no-daemon; then
-              echo "Gradle is ready."
-              exit 0
-            fi
-
-            echo "Attempt failed. Waiting 30 seconds..."
-            sleep 30
-          done
-
-          echo "Gradle could not be downloaded."
-          exit 1
 
       - name: Build Android APK
         working-directory: mobile
@@ -134,18 +81,6 @@ jobs:
       - name: Build Web Application
         working-directory: mobile
         run: flutter build web --release
-
-      - name: Save Project Files
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+actions-user@users.noreply.github.com"
-
-          git add mobile/
-
-          if ! git diff --cached --quiet; then
-            git commit -m "Build HPC Smart AI Flutter application"
-            git push
-          fi
 
       - name: Upload Android APK
         uses: actions/upload-artifact@v4

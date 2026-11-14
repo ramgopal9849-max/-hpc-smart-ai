@@ -9,10 +9,13 @@ on:
       - 'mobile/**'
       - '.github/workflows/flutter.yml'
 
+permissions:
+  contents: read
+
 jobs:
   flutter-check:
     name: Flutter Setup and Analyze
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     defaults:
       run:

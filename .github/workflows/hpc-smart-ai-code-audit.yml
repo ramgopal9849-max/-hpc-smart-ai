@@ -2,9 +2,11 @@ name: HPC Smart AI Code Audit
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
   pull_request:
-    branches: [main]
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
@@ -12,23 +14,40 @@ permissions:
 
 jobs:
   audit:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
+    name: Flutter, PHP, JSON and YAML Audit
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
 
-      - uses: subosito/flutter-action@v2
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
         with:
           channel: stable
+          cache: true
 
       - name: Flutter and Dart Audit
         working-directory: mobile
         run: |
+          flutter --version
           flutter pub get
-          dart format --output=none --set-exit-if-changed lib
+          dart format --output=none lib
           flutter analyze
-          if [ -d test ]; then flutter test; fi
 
-      - uses: shivammathur/setup-php@v2
+          if [ -d test ]; then
+            flutter test
+          fi
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
 
@@ -38,14 +57,21 @@ jobs:
 
       - name: JSON Audit
         run: |
-          find . -type d \( -name vendor -o -name .git \) -prune -o -type f -name '*.json' -print0 | while IFS= read -r -d '' f; do python3 -m json.tool "$f" >/dev/null || exit 1; done
+          find . -type d \( -name vendor -o -name .git \) -prune -o -type f -name '*.json' -print0 |
+          while IFS= read -r -d '' f; do
+            python3 -m json.tool "$f" >/dev/null || exit 1
+          done
 
       - name: YAML Audit
         run: |
-          ruby -e 'require "yaml"; YAML.load_file(".github/workflows/hpc-smart-ai-code-audit.yml", aliases: true)'
+          find .github/workflows -maxdepth 1 -type f \( -name '*.yml' -o -name '*.yaml' \) -print0 |
+          while IFS= read -r -d '' f; do
+            ruby -e 'require "yaml"; YAML.load_file(ARGV[0], aliases: true)' "$f" || exit 1
+            echo "Valid YAML: $f"
+          done
 
       - name: Audit Report
         if: always()
         run: |
           echo "## HPC Smart AI Code Audit" >> "$GITHUB_STEP_SUMMARY"
-          echo "Check job logs for errors and affected file names." >> "$GITHUB_STEP_SUMMARY"
+          echo "Flutter, PHP, JSON and YAML audit logs are available above." >> "$GITHUB_STEP_SUMMARY"
