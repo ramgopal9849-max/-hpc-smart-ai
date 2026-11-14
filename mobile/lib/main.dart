@@ -843,7 +843,7 @@ class _HpcChatPageState extends State<HpcChatPage> {
 
     setState(() {
       loadingSession = false;
-      qwenConnected = connected;
+      qwenConnected = connected.isNotEmpty;
     });
   }
 
