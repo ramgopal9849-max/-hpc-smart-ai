@@ -362,6 +362,21 @@ class HpcApi {
         .toList();
   }
 
+  // GET WEBSITES AND THEIR REAL CONNECTION STATUS
+  static Future<List<Map<String, dynamic>>> getBusinessWebsites(int id) async {
+    if (!isLoggedIn) throw Exception("Please login first.");
+    final result = await request(
+      "/businesses/$id/websites",
+      authenticated: true,
+    );
+    final data = result["websites"];
+    if (data is! List) return [];
+    return data
+        .whereType<Map>()
+        .map((item) => Map<String, dynamic>.from(item))
+        .toList();
+  }
+
   // ==========================================================
   // GET BUSINESS DASHBOARD
   // ==========================================================
@@ -630,6 +645,9 @@ HPC SMART AI CAPABILITIES:
 - Help users understand website management, website scanning, services, bookings, payments, complaints and customer support.
 - Explain technical problems patiently, step by step.
 - When connected business or website information is actually supplied, use it accurately.
+ - Users can chat normally even when no website is connected.
+- If asked about a specific website and no website data is supplied, explain that you cannot inspect it yet. Give general guidance and suggest connecting the website for an accurate review.
+- Never force website connection for general questions.
 - Website access is read-only unless an authorized operation is explicitly supported and approved.
 
 SAFETY AND PERMISSIONS:
@@ -858,13 +876,6 @@ class _HpcChatPageState extends State<HpcChatPage> {
       return;
     }
 
-    if (HpcApi.businessId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('पहले अपनी Website Connect करें।')),
-      );
-      return;
-    }
-
     setState(() {
       messages.add({'text': text, 'isUser': true, 'time': DateTime.now()});
 
@@ -951,6 +962,16 @@ class _HpcChatPageState extends State<HpcChatPage> {
   }
 
   Widget _buildWelcomeScreen() {
+    final String userName =
+        (HpcApi.currentUser?['name'] ??
+                HpcApi.currentUser?['full_name'] ??
+                HpcApi.currentUser?['username'] ??
+                '')
+            .toString()
+            .trim();
+    final String greeting = userName.isEmpty
+        ? 'नमस्ते! मैं HPC Smart AI हूँ'
+        : 'नमस्ते ' + userName + '! मैं HPC Smart AI हूँ';
     return Center(
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
@@ -971,8 +992,8 @@ class _HpcChatPageState extends State<HpcChatPage> {
               ),
             ),
             const SizedBox(height: 22),
-            const Text(
-              'नमस्ते! मैं HPC Smart AI हूँ',
+            Text(
+              greeting,
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 23,
@@ -981,7 +1002,7 @@ class _HpcChatPageState extends State<HpcChatPage> {
               ),
             ),
             const SizedBox(height: 10),
-            const Text(
+            Text(
               'आप मुझसे सवाल पूछ सकते हैं। '
               'मैं आपकी सहायता करने की कोशिश करूँगा।',
               textAlign: TextAlign.center,
@@ -1040,15 +1061,16 @@ class _HpcChatPageState extends State<HpcChatPage> {
 
     final actions = rawActions is List
         ? rawActions
-            .whereType<Map>()
-            .map((item) => Map<String, dynamic>.from(item))
-            .toList()
+              .whereType<Map>()
+              .map((item) => Map<String, dynamic>.from(item))
+              .toList()
         : <Map<String, dynamic>>[];
 
     return Column(
       mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment:
-          isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+      crossAxisAlignment: isUser
+          ? CrossAxisAlignment.end
+          : CrossAxisAlignment.start,
       children: [
         Align(
           alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
@@ -1062,8 +1084,8 @@ class _HpcChatPageState extends State<HpcChatPage> {
               color: isUser
                   ? hpcBlue
                   : isError
-                      ? const Color(0xFFFFF1F0)
-                      : const Color(0xFFF2F4F7),
+                  ? const Color(0xFFFFF1F0)
+                  : const Color(0xFFF2F4F7),
               borderRadius: BorderRadius.only(
                 topLeft: const Radius.circular(17),
                 topRight: const Radius.circular(17),
@@ -1079,8 +1101,8 @@ class _HpcChatPageState extends State<HpcChatPage> {
                 color: isUser
                     ? Colors.white
                     : isError
-                        ? const Color(0xFFB42318)
-                        : const Color(0xFF202939),
+                    ? const Color(0xFFB42318)
+                    : const Color(0xFF202939),
               ),
             ),
           ),
@@ -1150,15 +1172,25 @@ class _HpcChatPageState extends State<HpcChatPage> {
                         size: 21,
                       ),
                       onPressed: () async {
-                        final clipboard = await Clipboard.getData(Clipboard.kTextPlain);
+                        final clipboard = await Clipboard.getData(
+                          Clipboard.kTextPlain,
+                        );
                         final pastedText = clipboard?.text;
                         if (pastedText == null || pastedText.isEmpty) return;
 
                         final oldText = messageController.text;
                         final selection = messageController.selection;
-                        final start = selection.start < 0 ? oldText.length : selection.start;
-                        final end = selection.end < 0 ? oldText.length : selection.end;
-                        final updatedText = oldText.replaceRange(start, end, pastedText);
+                        final start = selection.start < 0
+                            ? oldText.length
+                            : selection.start;
+                        final end = selection.end < 0
+                            ? oldText.length
+                            : selection.end;
+                        final updatedText = oldText.replaceRange(
+                          start,
+                          end,
+                          pastedText,
+                        );
 
                         messageController.value = TextEditingValue(
                           text: updatedText,
@@ -1185,10 +1217,7 @@ class _HpcChatPageState extends State<HpcChatPage> {
                   shape: const CircleBorder(),
                 ),
                 child: sending
-                    ? const TypingIndicator(
-                        color: Colors.white,
-                        dotSize: 3,
-                      )
+                    ? const TypingIndicator(color: Colors.white, dotSize: 3)
                     : const Icon(Icons.send_rounded, size: 21),
               ),
             ),
@@ -1213,10 +1242,7 @@ class _HpcChatPageState extends State<HpcChatPage> {
             alignment: Alignment.centerLeft,
             child: Padding(
               padding: EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-              child: TypingIndicator(
-                color: hpcBlue,
-                dotSize: 7,
-              ),
+              child: TypingIndicator(color: hpcBlue, dotSize: 7),
             ),
           );
         }
@@ -1428,10 +1454,7 @@ class _HpcAuthPageState extends State<HpcAuthPage> {
         backgroundColor: Colors.white,
         foregroundColor: const Color(0xFF172033),
         elevation: 0,
-        title: const Text(
-          appName,
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
+        title: Text(appName, style: TextStyle(fontWeight: FontWeight.bold)),
       ),
       body: SafeArea(
         child: Center(
@@ -1730,53 +1753,85 @@ class HpcMainPage extends StatelessWidget {
         break;
 
       case 'chat_history':
-        Navigator.push(context, MaterialPageRoute(builder: (_) => const ChatHistoryScreen()));
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const ChatHistoryScreen()),
+        );
         break;
 
       case 'connect_website':
-        Navigator.push(context, MaterialPageRoute(builder: (_) => const ConnectWebsiteScreen()));
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const ConnectWebsiteScreen()),
+        );
         break;
 
       case 'website_dashboard':
-        Navigator.push(context, MaterialPageRoute(builder: (_) => const WebsiteDashboardScreen()));
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const WebsiteDashboardScreen()),
+        );
         break;
 
       case 'website_scanner':
-        Navigator.push(context, MaterialPageRoute(builder: (_) => const WebsiteScannerScreen()));
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const WebsiteScannerScreen()),
+        );
         break;
 
       case 'ai_tools':
-        Navigator.push(context, MaterialPageRoute(builder: (_) => const AiToolsScreen()));
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const AiToolsScreen()),
+        );
         break;
 
       case 'my_projects':
-        Navigator.push(context, MaterialPageRoute(builder: (_) => const MyProjectsScreen()));
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const MyProjectsScreen()),
+        );
         break;
 
       case 'notifications':
-        Navigator.push(context, MaterialPageRoute(builder: (_) => const NotificationsScreen()));
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const NotificationsScreen()),
+        );
         break;
 
       case 'help_support':
-        Navigator.push(context, MaterialPageRoute(builder: (_) => const HelpSupportScreen()));
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const HelpSupportScreen()),
+        );
         break;
 
       case 'settings':
-        Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen()));
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const SettingsScreen()),
+        );
         break;
 
       case 'my_account':
-        Navigator.push(context, MaterialPageRoute(builder: (_) => const MyAccountScreen()));
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const MyAccountScreen()),
+        );
         break;
 
       case 'about':
-        Navigator.push(context, MaterialPageRoute(builder: (_) => const AboutScreen()));
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const AboutScreen()),
+        );
         break;
 
       default:
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('अज्ञात विकल्प: $route')),
-        );
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('अज्ञात विकल्प: $route')));
     }
   }
 
