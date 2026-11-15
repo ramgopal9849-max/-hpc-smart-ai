@@ -527,7 +527,7 @@ class HpcApi {
   static const String localAIEndpoint =
       'http://127.0.0.1:8081/v1/chat/completions';
 
-  static const String localAIModel = 'Qwen2.5-1.5B-Instruct';
+  static const String localAIModel = '/data/data/com.termux/files/home/llama.cpp/models/qwen2.5-1.5b-instruct-q4_k_m.gguf';
 
   static bool localAIEnabled = true;
 
@@ -702,6 +702,7 @@ Your goal is to understand the user, maintain conversational context, and provid
       // ------------------------------------------------------
 
       final body = {
+        'model': localAIModel,
         'messages': conversation,
         'temperature': 0.2,
         'top_p': 0.8,
@@ -822,16 +823,21 @@ class _HpcChatPageState extends State<HpcChatPage> {
   }
 
   Future<void> _initialize() async {
-    await HpcApi.loadSession();
+    bool connected = false;
 
-    final connected = await HpcApi.testLocalAI();
-
-    if (!mounted) return;
-
-    setState(() {
-      loadingSession = false;
-      qwenConnected = connected.isNotEmpty;
-    });
+    try {
+      await HpcApi.loadSession();
+      connected = await HpcApi.checkLocalAIConnection();
+    } catch (e) {
+      debugPrint("Chat initialization error: $e");
+    } finally {
+      if (mounted) {
+        setState(() {
+          loadingSession = false;
+          qwenConnected = connected;
+        });
+      }
+    }
   }
 
   @override
