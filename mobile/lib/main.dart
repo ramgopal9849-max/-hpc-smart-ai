@@ -706,7 +706,7 @@ Your goal is to understand the user, maintain conversational context, and provid
         'messages': conversation,
         'temperature': 0.2,
         'top_p': 0.8,
-        'max_tokens': 400,
+        'max_tokens': 180,
         'stream': false,
       };
 
@@ -911,7 +911,7 @@ class _HpcChatPageState extends State<HpcChatPage> {
 
       final recentMessages = <Map<String, dynamic>>[];
       var usedCharacters = 0;
-      const contextCharacterBudget = 3000;
+      const contextCharacterBudget = 800;
 
       for (final item in allConversationHistory.reversed) {
         final messageLength = item['text'].toString().length;
