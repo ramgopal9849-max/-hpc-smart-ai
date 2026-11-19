@@ -25,12 +25,15 @@ class _ConnectWebsiteScreenState extends State<ConnectWebsiteScreen> {
   int? _selectedBusinessId;
   bool _authorizing = false;
   bool _authorizationVerified = false;
+  bool _installing = false;
+  bool _installConsentConfirmed = false;
+  String? _connectorZipPath;
+  String _installMessage = "";
   String? _authorizationRequestId;
   String? _verificationFilePath;
   String? _verificationFileContent;
   int? _websiteConnectionId;
   String _authorizationMessage = '';
-
 
   String _platform = 'Not detected';
   String _server = 'Unknown';
@@ -39,9 +42,9 @@ class _ConnectWebsiteScreenState extends State<ConnectWebsiteScreen> {
   String _verificationMessage = '';
 
   bool? _websiteReachable;
-  final bool _connectorLive = false;
-  final bool _filesVerified = false;
-  final bool _databaseAccess = false;
+  bool? _connectorLive;
+  bool? _filesVerified;
+  bool? _databaseAccess;
   bool? _httpsEnabled;
 
   List<Map<String, dynamic>> businesses = [];
@@ -307,7 +310,6 @@ class _ConnectWebsiteScreenState extends State<ConnectWebsiteScreen> {
     }
   }
 
-
   String _authorizationPlatformKey() {
     final value = _platform.toLowerCase();
 
@@ -378,26 +380,25 @@ class _ConnectWebsiteScreenState extends State<ConnectWebsiteScreen> {
           : <String, dynamic>{};
 
       setState(() {
-        _authorizationRequestId =
-            (response['request_id'] ?? '').toString();
-        _verificationFilePath =
-            (verificationData['file_path'] ?? '').toString();
-        _verificationFileContent =
-            (verificationData['file_content'] ?? '').toString();
-        _authorizationMessage =
-            'Challenge तैयार है। इसे Website के root में दिए गए path पर upload करें।';
+        _authorizationRequestId = (response['request_id'] ?? '').toString();
+        _verificationFilePath = (verificationData['file_path'] ?? '')
+            .toString();
+        _verificationFileContent = (verificationData['file_content'] ?? '')
+            .toString();
+        _authorizationMessage = 'Challenge तैयार है। इसे Website के root में दिए गए path पर upload करें।';
       });
 
       if (_authorizationRequestId!.isEmpty ||
           _verificationFilePath!.isEmpty ||
           _verificationFileContent!.isEmpty) {
-        throw Exception('Backend से verification file की पूरी जानकारी नहीं मिली।');
+        throw Exception(
+          'Backend से verification file की पूरी जानकारी नहीं मिली।',
+        );
       }
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _authorizationMessage =
-            e.toString().replaceFirst('Exception: ', '');
+        _authorizationMessage = e.toString().replaceFirst('Exception: ', '');
       });
       _showMessage(_authorizationMessage, isError: true);
     } finally {
@@ -429,7 +430,7 @@ class _ConnectWebsiteScreenState extends State<ConnectWebsiteScreen> {
       if (response['success'] != true ||
           response['authorization_status'] != 'verified') {
         throw Exception(
-          response['message'] ?? 'Website ownership verify नहीं हुई।'
+          response['message'] ?? 'Website ownership verify नहीं हुई।',
         );
       }
 
@@ -456,8 +457,7 @@ class _ConnectWebsiteScreenState extends State<ConnectWebsiteScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _authorizationMessage =
-            e.toString().replaceFirst('Exception: ', '');
+        _authorizationMessage = e.toString().replaceFirst('Exception: ', '');
       });
       _showMessage(_authorizationMessage, isError: true);
     } finally {
@@ -483,55 +483,139 @@ class _ConnectWebsiteScreenState extends State<ConnectWebsiteScreen> {
 
     setState(() {
       _verifying = true;
-      _verificationMessage = 'Connection status refresh हो रहा है...';
+      _verificationMessage =
+          'Website पर installed Connector की जाँच हो रही है...';
     });
 
     try {
-      final connections =
-          await HpcApi.getBusinessWebsites(_selectedBusinessId!);
+      final result = await HpcApi.request(
+        'connect/install/verify',
+        method: 'POST',
+        authenticated: true,
+        body: {'website_connection_id': _websiteConnectionId},
+      );
 
-      Map<String, dynamic>? matched;
-      for (final item in connections) {
-        final id = int.tryParse(
-          (item['id'] ?? item['website_connection_id'] ?? '').toString(),
-        );
-        if (id == _websiteConnectionId) {
-          matched = item;
-          break;
-        }
-      }
+      final verificationStatus = (result['verification_status'] ?? '')
+          .toString()
+          .toLowerCase();
+
+      final verified =
+          result['success'] == true && verificationStatus == 'verified';
 
       if (!mounted) return;
 
-      if (matched == null) {
-        setState(() {
-          _verificationMessage =
-              'Verified connection record अभी इस Business में नहीं मिला।';
-        });
-        _showMessage(_verificationMessage, isError: true);
-        return;
-      }
-
-      final status =
-          (matched['status'] ?? 'pending').toString().toLowerCase();
-
       setState(() {
-        _verificationMessage =
-            'Ownership Verified. Connection ID: $_websiteConnectionId. '
-            'Server Status: $status. Connector installation और final '
-            'verification अभी बाकी हैं।';
+        _connectorLive = verified;
+        _filesVerified = verified;
+        _verificationMessage = verified
+            ? 'Connector Live और installation verification सफल। '
+                  'Database Read-Only Access की जाँच अभी बाकी है।'
+            : (result['error'] ??
+                      result['message'] ??
+                      'Connector verification अभी सफल नहीं हुई। '
+                          'जाँचें कि ZIP वेबसाइट के document root में upload '
+                          'और extract किया गया है।')
+                  .toString();
       });
 
-      _showMessage('Connection status refresh हो गया।');
+      await HpcApi.getBusinessWebsites(_selectedBusinessId!);
+
+      if (!mounted) return;
+
+      if (verified) {
+        _showMessage('Connector सफलतापूर्वक Verify हो गया।');
+      } else {
+        _showMessage(_verificationMessage, isError: true);
+      }
     } catch (e) {
       if (!mounted) return;
+
       setState(() {
+        _connectorLive = false;
+        _filesVerified = false;
         _verificationMessage =
-            'Status refresh नहीं हुआ: ${e.toString().replaceFirst('Exception: ', '')}';
+            'Connector verification नहीं हुई: '
+            '${e.toString().replaceFirst('Exception: ', '')}';
       });
+
       _showMessage(_verificationMessage, isError: true);
     } finally {
       if (mounted) setState(() => _verifying = false);
+    }
+  }
+
+  Future<void> _installConnectorPackage() async {
+    if (!HpcApi.isLoggedIn) {
+      _showMessage('पहले Login करें।', isError: true);
+      return;
+    }
+
+    if (!_authorizationVerified || _websiteConnectionId == null) {
+      _showMessage('पहले Website Ownership Verify करें।', isError: true);
+      return;
+    }
+
+    if (!_installConsentConfirmed) {
+      _showMessage('पहले Connector Installation की अनुमति दें।', isError: true);
+      return;
+    }
+
+    setState(() {
+      _installing = true;
+      _installMessage = 'Installation consent सुरक्षित किया जा रहा है...';
+      _connectorZipPath = null;
+    });
+
+    try {
+      final consent = await HpcApi.request(
+        'connect/install/consent',
+        method: 'POST',
+        authenticated: true,
+        body: {
+          'website_connection_id': _websiteConnectionId,
+          'confirm_install': true,
+        },
+      );
+
+      final installToken = (consent['install_token'] ?? '').toString();
+
+      if (consent['success'] != true || installToken.isEmpty) {
+        throw Exception(
+          consent['error'] ?? 'Installation consent token नहीं मिला।',
+        );
+      }
+
+      if (!mounted) return;
+
+      setState(() {
+        _installMessage =
+            'Consent verified. Connector ZIP डाउनलोड हो रहा है...';
+      });
+
+      final zipPath = await HpcApi.downloadConnectorPackage(
+        websiteConnectionId: _websiteConnectionId!,
+        installToken: installToken,
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        _connectorZipPath = zipPath;
+        _installMessage = 'Connector ZIP सफलतापूर्वक डाउनलोड हुआ। अब इसे अपनी Website के document root में manually upload और extract करें।';
+      });
+
+      _showMessage('Connector ZIP डाउनलोड हो गया।');
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        _installMessage =
+            'Installation package प्राप्त नहीं हुआ: ${e.toString().replaceFirst('Exception: ', '')}';
+      });
+
+      _showMessage(_installMessage, isError: true);
+    } finally {
+      if (mounted) setState(() => _installing = false);
     }
   }
 
@@ -1018,7 +1102,6 @@ class _ConnectWebsiteScreenState extends State<ConnectWebsiteScreen> {
     );
   }
 
-
   Widget _stepTwo() {
     final availableBusinesses = <Map<String, dynamic>>[];
     final seenBusinessIds = <int>{};
@@ -1061,7 +1144,9 @@ class _ConnectWebsiteScreenState extends State<ConnectWebsiteScreen> {
             initialValue: selectedBusinessExists ? _selectedBusinessId : null,
             isExpanded: true,
             decoration: InputDecoration(
-              hintText: loading ? 'Businesses लोड हो रहे हैं...' : 'अपना Business चुनें',
+              hintText: loading
+                  ? 'Businesses लोड हो रहे हैं...'
+                  : 'अपना Business चुनें',
               prefixIcon: const Icon(Icons.business_outlined),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
@@ -1090,10 +1175,12 @@ class _ConnectWebsiteScreenState extends State<ConnectWebsiteScreen> {
                     setState(() {
                       _selectedBusinessId = id;
                       final selected = availableBusinesses.firstWhere(
-                        (business) => int.tryParse(
-                          (business['id'] ?? business['business_id'] ?? '')
-                              .toString(),
-                        ) == id,
+                        (business) =>
+                            int.tryParse(
+                              (business['id'] ?? business['business_id'] ?? '')
+                                  .toString(),
+                            ) ==
+                            id,
                       );
                       _nameController.text = _businessName(selected);
                       _authorizationRequestId = null;
@@ -1166,8 +1253,7 @@ class _ConnectWebsiteScreenState extends State<ConnectWebsiteScreen> {
             width: double.infinity,
             height: 49,
             child: ElevatedButton.icon(
-              onPressed: _authorizing ||
-                      _authorizationRequestId != null
+              onPressed: _authorizing || _authorizationRequestId != null
                   ? null
                   : _startManualVerification,
               icon: _authorizing
@@ -1181,9 +1267,7 @@ class _ConnectWebsiteScreenState extends State<ConnectWebsiteScreen> {
                     )
                   : const Icon(Icons.verified_user_outlined),
               label: Text(
-                _authorizing
-                    ? 'Please wait...'
-                    : 'Create Verification File',
+                _authorizing ? 'Please wait...' : 'Create Verification File',
               ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: _blue,
@@ -1217,8 +1301,7 @@ class _ConnectWebsiteScreenState extends State<ConnectWebsiteScreen> {
             Align(
               alignment: Alignment.centerRight,
               child: TextButton.icon(
-                onPressed: () =>
-                    _copyVerificationText(_verificationFilePath!),
+                onPressed: () => _copyVerificationText(_verificationFilePath!),
                 icon: const Icon(Icons.copy_rounded, size: 18),
                 label: const Text('Copy File Path'),
               ),
@@ -1238,10 +1321,7 @@ class _ConnectWebsiteScreenState extends State<ConnectWebsiteScreen> {
               ),
               child: SelectableText(
                 _verificationFileContent!,
-                style: const TextStyle(
-                  fontFamily: 'monospace',
-                  fontSize: 12,
-                ),
+                style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
               ),
             ),
             Align(
@@ -1302,52 +1382,126 @@ class _ConnectWebsiteScreenState extends State<ConnectWebsiteScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _sectionTitle(
-            'Auto Install',
-            'Website Connector Installation',
+            'Connector Installation',
+            'Secure Website Connector Setup',
             Icons.cloud_upload_rounded,
           ),
           const SizedBox(height: 18),
           _infoBox(
-            icon: Icons.settings_suggest_rounded,
-            title: 'Installer Integration Required',
+            icon: Icons.security_rounded,
+            title: 'Read-Only Installation',
             message:
-                'Automatic installation के लिए Hosting Authorization, '
-                'Secure File Transfer, Backup और Connector Installer '
-                'Backend अभी configure नहीं हैं। इसलिए अभी कोई File Upload '
-                'या Website Modification नहीं की जाएगी।',
-            color: _orange,
+                'आपकी स्पष्ट अनुमति के बाद सुरक्षित Connector ZIP तैयार होगा। '
+                'यह ऐप आपकी वेबसाइट पर अपने-आप कोई फ़ाइल upload नहीं करेगा। '
+                'ZIP को Hosting File Manager में manually upload करना होगा।',
+            color: _blue,
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: 14),
+          CheckboxListTile(
+            contentPadding: EdgeInsets.zero,
+            value: _installConsentConfirmed,
+            onChanged: _installing
+                ? null
+                : (value) {
+                    setState(() {
+                      _installConsentConfirmed = value ?? false;
+                    });
+                  },
+            controlAffinity: ListTileControlAffinity.leading,
+            title: const Text(
+              'मैं इस वेबसाइट पर HPC Smart AI Read-Only Connector install करने की अनुमति देता/देती हूँ।',
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+            ),
+            subtitle: const Text(
+              'यह अनुमति ZIP package बनाने और डाउनलोड करने के लिए है। '
+              'Website पर upload अभी manually करना होगा।',
+              style: TextStyle(fontSize: 11),
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            height: 50,
+            child: ElevatedButton.icon(
+              onPressed: _installing || _connectorZipPath != null
+                  ? null
+                  : _installConnectorPackage,
+              icon: _installing
+                  ? const SizedBox(
+                      height: 18,
+                      width: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Icon(Icons.download_rounded),
+              label: Text(
+                _installing
+                    ? 'Preparing Connector ZIP...'
+                    : 'Approve & Download Connector ZIP',
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _blue,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(13),
+                ),
+              ),
+            ),
+          ),
+          if (_installMessage.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            _infoBox(
+              icon: _connectorZipPath != null
+                  ? Icons.check_circle_rounded
+                  : Icons.info_outline_rounded,
+              title: _connectorZipPath != null
+                  ? 'Package Ready'
+                  : 'Installation Status',
+              message: _installMessage,
+              color: _connectorZipPath != null ? _green : _blue,
+            ),
+          ],
+          if (_connectorZipPath != null) ...[
+            const SizedBox(height: 12),
+            _installStatus(
+              Icons.archive_rounded,
+              'Downloaded ZIP',
+              _connectorZipPath!.split('/').last,
+            ),
+            SelectableText(
+              _connectorZipPath!,
+              style: const TextStyle(fontSize: 11, color: Colors.black54),
+            ),
+          ],
+          const SizedBox(height: 16),
           _installStatus(
             Icons.folder_open_rounded,
             'Website Root Folder',
             'Not accessed',
           ),
-          _installStatus(Icons.backup_rounded, 'Website Backup', 'Not created'),
+          _installStatus(
+            Icons.backup_rounded,
+            'Website Backup',
+            'Not created by this app',
+          ),
           _installStatus(
             Icons.upload_file_rounded,
             'Connector Upload',
-            'Not installed',
+            _connectorZipPath == null
+                ? 'Package not downloaded'
+                : 'Manual upload required',
           ),
           _installStatus(
             Icons.storage_rounded,
             'Database Permission',
-            'Not authorized',
+            'Not configured',
           ),
           _installStatus(
             Icons.security_rounded,
-            'Security Configuration',
-            'Not configured',
-          ),
-          const SizedBox(height: 12),
-          _infoBox(
-            icon: Icons.info_outline_rounded,
-            title: 'Next Step',
-            message:
-                'Ownership verify होने के बाद Step 4 में Connection Status refresh कर सकते हैं। '
-                'Connector install और final verification अभी बाकी रहेंगे। इससे '
-                'Connector Installation का दावा नहीं किया जाएगा।',
-            color: _blue,
+            'Write Access',
+            'Disabled — Read Only',
           ),
         ],
       ),
@@ -1376,8 +1530,8 @@ class _ConnectWebsiteScreenState extends State<ConnectWebsiteScreen> {
                 : 'Ownership Verification Pending',
             message: _authorizationVerified
                 ? 'Website ownership verify हो चुकी है। Connection अभी '
-                    'Pending है; Connector Installation और final checks '
-                    'पूरे होने के बाद ही Connected माना जाएगा।'
+                      'Pending है; Connector Installation और final checks '
+                      'पूरे होने के बाद ही Connected माना जाएगा।'
                 : 'Step 2 में पहले Website Ownership Verify करें।',
             color: _authorizationVerified ? _green : _orange,
           ),
@@ -1405,7 +1559,7 @@ class _ConnectWebsiteScreenState extends State<ConnectWebsiteScreen> {
           _verificationRow(
             'Database Access',
             _databaseAccess,
-            'Authorized database connection',
+            'Read-only database verification अभी बाकी है',
           ),
           _verificationRow(
             'HTTPS Security',
@@ -1424,7 +1578,7 @@ class _ConnectWebsiteScreenState extends State<ConnectWebsiteScreen> {
             message: _verificationMessage.isNotEmpty
                 ? _verificationMessage
                 : 'अभी Connector install नहीं हुआ है। इसलिए Website '
-                    'को Connected घोषित नहीं किया गया है।',
+                      'को Connected घोषित नहीं किया गया है।',
             color: _blue,
           ),
           const SizedBox(height: 14),
@@ -1444,7 +1598,7 @@ class _ConnectWebsiteScreenState extends State<ConnectWebsiteScreen> {
                     )
                   : const Icon(Icons.refresh_rounded),
               label: Text(
-                _verifying ? 'Refreshing...' : 'Refresh Connection Status',
+                _verifying ? 'Verifying...' : 'Verify Installed Connector',
               ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: _blue,

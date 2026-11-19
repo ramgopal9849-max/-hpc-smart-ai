@@ -25,10 +25,12 @@ import 'widgets/typing_indicator.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:path_provider/path_provider.dart';
 
 // ============================================================
 // APP CONFIGURATION
@@ -212,6 +214,114 @@ class HpcApi {
     }
   }
   // ==========================================================
+  // ==========================================================
+  // DOWNLOAD CONNECTOR PACKAGE (AUTHENTICATED ZIP)
+  // ==========================================================
+
+  static Future<String> downloadConnectorPackage({
+    required int websiteConnectionId,
+    required String installToken,
+  }) async {
+    if (!isLoggedIn) {
+      throw Exception('Please login before downloading connector.');
+    }
+
+    if (installToken.trim().isEmpty) {
+      throw Exception('Install token is missing.');
+    }
+
+    final client = HttpClient()
+      ..connectionTimeout = const Duration(seconds: 30);
+
+    try {
+      final baseUrl = hpcApiBaseUrl.endsWith('/')
+          ? hpcApiBaseUrl
+          : '$hpcApiBaseUrl/';
+
+      final uri = Uri.parse(baseUrl).resolve('connect/install/package');
+
+      if (uri.scheme != 'https') {
+        throw Exception('Secure HTTPS connection is required.');
+      }
+
+      final request = await client.postUrl(uri);
+
+      request.headers.set(HttpHeaders.authorizationHeader, 'Bearer $token');
+      request.headers.set(
+        HttpHeaders.acceptHeader,
+        'application/zip, application/octet-stream, application/json',
+      );
+      request.headers.contentType = ContentType.json;
+
+      request.write(
+        jsonEncode({
+          'website_connection_id': websiteConnectionId,
+          'install_token': installToken,
+        }),
+      );
+
+      final response = await request.close().timeout(
+        const Duration(seconds: 90),
+      );
+
+      final builder = BytesBuilder(copy: false);
+      var totalBytes = 0;
+
+      await for (final chunk in response.timeout(const Duration(seconds: 90))) {
+        totalBytes += chunk.length;
+
+        if (totalBytes > 10 * 1024 * 1024) {
+          throw Exception('Connector package exceeds 10 MB limit.');
+        }
+
+        builder.add(chunk);
+      }
+
+      final bytes = builder.takeBytes();
+
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        final errorText = utf8.decode(bytes, allowMalformed: true);
+        dynamic errorData;
+
+        try {
+          errorData = jsonDecode(errorText);
+        } catch (_) {
+          errorData = null;
+        }
+
+        throw Exception(
+          errorData is Map
+              ? errorData['error'] ?? errorData['message'] ?? errorText
+              : 'Package download failed: HTTP ${response.statusCode}',
+        );
+      }
+
+      if (bytes.length < 4 || bytes[0] != 0x50 || bytes[1] != 0x4B) {
+        final responseText = utf8.decode(bytes, allowMalformed: true);
+        throw Exception(
+          'Server did not return a valid ZIP package. '
+          '${responseText.length > 250 ? responseText.substring(0, 250) : responseText}',
+        );
+      }
+
+      final directory = await getApplicationDocumentsDirectory();
+
+      final file = File(
+        '${directory.path}/hpc_connector_${websiteConnectionId}_${DateTime.now().millisecondsSinceEpoch}.zip',
+      );
+
+      await file.writeAsBytes(bytes, flush: true);
+
+      return file.path;
+    } on SocketException {
+      throw Exception('Internet connection nahi mil raha.');
+    } on TimeoutException {
+      throw Exception('Package download timeout ho gaya.');
+    } finally {
+      client.close(force: true);
+    }
+  }
+
   // USER LOGIN
   // ==========================================================
 
@@ -527,7 +637,8 @@ class HpcApi {
   static const String localAIEndpoint =
       'http://127.0.0.1:8081/v1/chat/completions';
 
-  static const String localAIModel = '/data/data/com.termux/files/home/llama.cpp/models/qwen2.5-1.5b-instruct-q4_k_m.gguf';
+  static const String localAIModel =
+      '/data/data/com.termux/files/home/llama.cpp/models/qwen2.5-1.5b-instruct-q4_k_m.gguf';
 
   static bool localAIEnabled = true;
 
