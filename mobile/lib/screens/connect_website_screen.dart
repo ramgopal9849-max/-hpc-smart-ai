@@ -372,13 +372,18 @@ class _ConnectWebsiteScreenState extends State<ConnectWebsiteScreen> {
       }
 
       if (!mounted) return;
+      final verification = response['verification'];
+      final verificationData = verification is Map
+          ? Map<String, dynamic>.from(verification)
+          : <String, dynamic>{};
+
       setState(() {
         _authorizationRequestId =
             (response['request_id'] ?? '').toString();
         _verificationFilePath =
-            (response['file_path'] ?? '').toString();
+            (verificationData['file_path'] ?? '').toString();
         _verificationFileContent =
-            (response['file_content'] ?? '').toString();
+            (verificationData['file_content'] ?? '').toString();
         _authorizationMessage =
             'Challenge तैयार है। इसे Website के root में दिए गए path पर upload करें।';
       });
