@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 
 import '../main.dart' show HpcApi;
@@ -21,7 +22,15 @@ class _ConnectWebsiteScreenState extends State<ConnectWebsiteScreen> {
   bool _detecting = false;
   bool _ownerConfirmed = false;
   bool _verifying = false;
-  bool _registered = false;
+  int? _selectedBusinessId;
+  bool _authorizing = false;
+  bool _authorizationVerified = false;
+  String? _authorizationRequestId;
+  String? _verificationFilePath;
+  String? _verificationFileContent;
+  int? _websiteConnectionId;
+  String _authorizationMessage = '';
+
 
   String _platform = 'Not detected';
   String _server = 'Unknown';
@@ -187,14 +196,12 @@ class _ConnectWebsiteScreenState extends State<ConnectWebsiteScreen> {
 
       final server = headers['server'] ?? 'Not disclosed';
       final poweredBy = headers['x-powered-by'] ?? '';
-      final generatorMatch = RegExp(
-        r'''<meta[^>]+name=["']generator["'][^>]+content=["']([^"']+)''',
-        caseSensitive: false,
-      ).firstMatch(response.body);
+      final via = headers['via'] ?? '';
 
       String platform = 'Custom / Unknown';
       String hosting = 'Unknown';
 
+      // Platform detection
       if (html.contains('wp-content') ||
           html.contains('wp-includes') ||
           html.contains('wordpress')) {
@@ -211,28 +218,50 @@ class _ConnectWebsiteScreenState extends State<ConnectWebsiteScreen> {
       } else if (html.contains('webflow.io') || html.contains('webflow.com')) {
         platform = 'Webflow';
       } else if (poweredBy.contains('php')) {
-        platform = 'PHP Website';
+        final version = RegExp(r'php[/ ]([0-9.]+)').firstMatch(poweredBy);
+        platform = version == null
+            ? 'PHP Website'
+            : 'PHP Website (${version.group(1)})';
       } else if (poweredBy.contains('asp.net')) {
         platform = 'ASP.NET';
       }
 
-      if (server.contains('hostinger')) {
-        hosting = 'Hostinger (header indication)';
-      } else if (server.contains('cloudflare')) {
-        hosting = 'Cloudflare / Proxy detected';
+      // Hosting and CDN indicators
+      if (server.contains('hcdn') ||
+          server.contains('hostinger') ||
+          via.contains('hostinger')) {
+        hosting = 'Hostinger (HCDN indication)';
+      } else if (headers.containsKey('cf-ray') ||
+          server.contains('cloudflare')) {
+        hosting = 'Cloudflare (CDN / Proxy indication)';
+      } else if (headers.containsKey('x-amz-cf-id') ||
+          headers.containsKey('x-amz-cf-pop') ||
+          server.contains('cloudfront') ||
+          via.contains('cloudfront')) {
+        hosting = 'Amazon CloudFront (CDN indication)';
+      } else if (headers.containsKey('x-azure-ref') ||
+          headers.containsKey('x-ms-request-id')) {
+        hosting = 'Microsoft Azure (header indication)';
+      } else if (headers.keys.any((key) => key.startsWith('x-goog-')) ||
+          server.contains('google')) {
+        hosting = 'Google infrastructure (header indication)';
+      } else if (headers.containsKey('x-vercel-id') ||
+          server.contains('vercel')) {
+        hosting = 'Vercel (header indication)';
+      } else if (headers.containsKey('x-nf-request-id') ||
+          server.contains('netlify')) {
+        hosting = 'Netlify (header indication)';
+      } else if (headers.containsKey('akamai-grn') ||
+          headers.containsKey('x-akamai-transformed') ||
+          server.contains('akamai')) {
+        hosting = 'Akamai (CDN indication)';
+      } else if (server.contains('fastly')) {
+        hosting = 'Fastly (CDN indication)';
       } else if (server.contains('nginx')) {
-        hosting = 'Nginx Server (provider unknown)';
+        hosting = 'Unknown provider (Nginx server)';
       } else if (server.contains('apache')) {
-        hosting = 'Apache Server (provider unknown)';
+        hosting = 'Unknown provider (Apache server)';
       }
-
-      if (generatorMatch != null) {
-        final generator = generatorMatch.group(1) ?? '';
-        if (generator.isNotEmpty && platform == 'Custom / Unknown') {
-          platform = generator;
-        }
-      }
-
       if (!mounted) return;
 
       setState(() {
@@ -278,101 +307,226 @@ class _ConnectWebsiteScreenState extends State<ConnectWebsiteScreen> {
     }
   }
 
-  Future<void> _verifyAndRegister() async {
+
+  String _authorizationPlatformKey() {
+    final value = _platform.toLowerCase();
+
+    if (value.contains('wordpress')) return 'wordpress';
+    if (value.contains('shopify')) return 'shopify';
+    if (value.contains('wix')) return 'wix';
+    if (value.contains('squarespace')) return 'squarespace';
+    if (value.contains('joomla')) return 'joomla';
+    if (value.contains('drupal')) return 'drupal';
+    if (value.contains('magento')) return 'magento';
+    if (value.contains('webflow')) return 'webflow';
+    if (value.contains('blogger')) return 'blogger';
+    if (value.contains('generator')) return 'generator_detected';
+
+    return 'custom_or_unknown';
+  }
+
+  Future<void> _startManualVerification() async {
     final uri = _websiteUri();
 
     if (uri == null) {
-      _showMessage('पहले सही Website URL डालें।', isError: true);
-      setState(() => _step = 0);
+      _showMessage('पहले सही HTTPS Website URL डालें।', isError: true);
       return;
     }
-
     if (!HpcApi.isLoggedIn) {
       _showMessage('कृपया पहले Login करें।', isError: true);
       return;
     }
-
-    if (_formKey.currentState?.validate() != true) {
-      setState(() => _step = 0);
-      _showMessage('Business Name और Website URL सही भरें।', isError: true);
+    if (!_ownerConfirmed) {
+      _showMessage('पहले Website Ownership की पुष्टि करें।', isError: true);
+      return;
+    }
+    if (_selectedBusinessId == null || _selectedBusinessId! <= 0) {
+      _showMessage('पहले अपना मौजूदा Business चुनें।', isError: true);
       return;
     }
 
-    if (_websiteReachable != true) {
-      setState(() => _step = 0);
+    setState(() {
+      _authorizing = true;
+      _authorizationMessage = 'Verification challenge बनाया जा रहा है...';
+      _authorizationRequestId = null;
+      _verificationFilePath = null;
+      _verificationFileContent = null;
+      _authorizationVerified = false;
+    });
+
+    try {
+      final response = await HpcApi.request(
+        'connect/authorize',
+        method: 'POST',
+        authenticated: true,
+        body: {
+          'business_id': _selectedBusinessId,
+          'website_url': uri.toString(),
+          'platform': _authorizationPlatformKey(),
+          'platform_name': _platform,
+        },
+      );
+
+      if (response['success'] != true) {
+        throw Exception(response['message'] ?? 'Challenge नहीं बन पाया।');
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _authorizationRequestId =
+            (response['request_id'] ?? '').toString();
+        _verificationFilePath =
+            (response['file_path'] ?? '').toString();
+        _verificationFileContent =
+            (response['file_content'] ?? '').toString();
+        _authorizationMessage =
+            'Challenge तैयार है। इसे Website के root में दिए गए path पर upload करें।';
+      });
+
+      if (_authorizationRequestId!.isEmpty ||
+          _verificationFilePath!.isEmpty ||
+          _verificationFileContent!.isEmpty) {
+        throw Exception('Backend से verification file की पूरी जानकारी नहीं मिली।');
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _authorizationMessage =
+            e.toString().replaceFirst('Exception: ', '');
+      });
+      _showMessage(_authorizationMessage, isError: true);
+    } finally {
+      if (mounted) setState(() => _authorizing = false);
+    }
+  }
+
+  Future<void> _verifyManualAuthorization() async {
+    final requestId = _authorizationRequestId;
+
+    if (requestId == null || requestId.isEmpty) {
+      _showMessage('पहले Verification File बनाइए।', isError: true);
+      return;
+    }
+
+    setState(() {
+      _authorizing = true;
+      _authorizationMessage = 'Website पर verification file जाँची जा रही है...';
+    });
+
+    try {
+      final response = await HpcApi.request(
+        'connect/verify',
+        method: 'POST',
+        authenticated: true,
+        body: {'request_id': requestId},
+      );
+
+      if (response['success'] != true ||
+          response['authorization_status'] != 'verified') {
+        throw Exception(
+          response['message'] ?? 'Website ownership verify नहीं हुई।'
+        );
+      }
+
+      final connectionId = int.tryParse(
+        (response['website_connection_id'] ?? '').toString(),
+      );
+
+      if (connectionId == null || connectionId <= 0) {
+        throw Exception('Verified connection ID backend से नहीं मिली।');
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _authorizationVerified = true;
+        _websiteConnectionId = connectionId;
+        _authorizationMessage =
+            'Ownership Verified. Website connection अभी Pending है।';
+        _verificationMessage = _authorizationMessage;
+        _step = 2;
+      });
+
+      _showMessage('Website Ownership सफलतापूर्वक Verify हुई।');
+      await _loadBusinesses();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _authorizationMessage =
+            e.toString().replaceFirst('Exception: ', '');
+      });
+      _showMessage(_authorizationMessage, isError: true);
+    } finally {
+      if (mounted) setState(() => _authorizing = false);
+    }
+  }
+
+  Future<void> _copyVerificationText(String value) async {
+    await Clipboard.setData(ClipboardData(text: value));
+    _showMessage('Copy हो गया।');
+  }
+
+  Future<void> _refreshConnectionStatus() async {
+    if (!_authorizationVerified ||
+        _websiteConnectionId == null ||
+        _selectedBusinessId == null) {
       _showMessage(
-        'पहले Step 1 में Website Detection सफल करें।',
+        'पहले Step 2 में Website Ownership Verify करें।',
         isError: true,
       );
       return;
     }
 
-    if (!_ownerConfirmed) {
-      setState(() => _step = 1);
-      _showMessage('पहले Website Ownership की पुष्टि करें।', isError: true);
-      return;
-    }
-
     setState(() {
       _verifying = true;
-      _verificationMessage = 'Website की दोबारा जाँच हो रही है...';
-      _websiteReachable = null;
+      _verificationMessage = 'Connection status refresh हो रहा है...';
     });
 
     try {
-      final response = await http
-          .get(
-            uri,
-            headers: {'User-Agent': 'HPC-Smart-AI-Website-Verification/1.0'},
-          )
-          .timeout(const Duration(seconds: 20));
+      final connections =
+          await HpcApi.getBusinessWebsites(_selectedBusinessId!);
 
-      final reachable = response.statusCode >= 200 && response.statusCode < 400;
+      Map<String, dynamic>? matched;
+      for (final item in connections) {
+        final id = int.tryParse(
+          (item['id'] ?? item['website_connection_id'] ?? '').toString(),
+        );
+        if (id == _websiteConnectionId) {
+          matched = item;
+          break;
+        }
+      }
 
       if (!mounted) return;
 
-      setState(() {
-        _websiteReachable = reachable;
-        _httpsEnabled = uri.scheme == 'https';
-        _verificationMessage =
-            'HTTP ${response.statusCode} — '
-            '${reachable ? 'Website reachable है।' : 'Website response सफल नहीं है।'}';
-      });
-
-      if (!reachable) {
-        _showMessage(
-          'Website reachable नहीं है। Registration नहीं किया गया।',
-          isError: true,
-        );
+      if (matched == null) {
+        setState(() {
+          _verificationMessage =
+              'Verified connection record अभी इस Business में नहीं मिला।';
+        });
+        _showMessage(_verificationMessage, isError: true);
         return;
       }
 
-      await HpcApi.createBusiness(
-        name: _nameController.text.trim(),
-        websiteUrl: uri.toString(),
-      );
-
-      if (!mounted) return;
+      final status =
+          (matched['status'] ?? 'pending').toString().toLowerCase();
 
       setState(() {
-        _registered = true;
+        _verificationMessage =
+            'Ownership Verified. Connection ID: $_websiteConnectionId. '
+            'Server Status: $status. Connector installation और final '
+            'verification अभी बाकी हैं।';
       });
 
-      _showMessage('Website HPC Smart AI में register हो गई।');
-
-      await _loadBusinesses();
+      _showMessage('Connection status refresh हो गया।');
     } catch (e) {
       if (!mounted) return;
-
       setState(() {
-        _verificationMessage = 'Verification या registration पूरा नहीं हुआ।';
+        _verificationMessage =
+            'Status refresh नहीं हुआ: ${e.toString().replaceFirst('Exception: ', '')}';
       });
-
-      _showMessage(e.toString().replaceFirst('Exception: ', ''), isError: true);
+      _showMessage(_verificationMessage, isError: true);
     } finally {
-      if (mounted) {
-        setState(() => _verifying = false);
-      }
+      if (mounted) setState(() => _verifying = false);
     }
   }
 
@@ -388,19 +542,26 @@ class _ConnectWebsiteScreenState extends State<ConnectWebsiteScreen> {
   }
 
   void _nextStep() {
-    if (_step == 0) {
-      if (_websiteReachable != true) {
-        _showMessage('पहले Website Detection सफल करें।', isError: true);
-        return;
-      }
+    if (_step == 0 && _websiteReachable != true) {
+      _showMessage('पहले Website Detection सफल करें।', isError: true);
+      return;
     }
 
-    if (_step == 1 && !_ownerConfirmed) {
-      _showMessage(
-        'आगे बढ़ने से पहले Website ownership की पुष्टि करें।',
-        isError: true,
-      );
-      return;
+    if (_step == 1) {
+      if (!_ownerConfirmed) {
+        _showMessage(
+          'आगे बढ़ने से पहले Website ownership की पुष्टि करें।',
+          isError: true,
+        );
+        return;
+      }
+      if (!_authorizationVerified) {
+        _showMessage(
+          'पहले Manual Verification File Upload करके Verify करें।',
+          isError: true,
+        );
+        return;
+      }
     }
 
     if (_step < 3) {
@@ -852,7 +1013,27 @@ class _ConnectWebsiteScreenState extends State<ConnectWebsiteScreen> {
     );
   }
 
+
   Widget _stepTwo() {
+    final availableBusinesses = <Map<String, dynamic>>[];
+    final seenBusinessIds = <int>{};
+
+    for (final business in businesses) {
+      final id = int.tryParse(
+        (business['id'] ?? business['business_id'] ?? '').toString(),
+      );
+      if (id != null && id > 0 && seenBusinessIds.add(id)) {
+        availableBusinesses.add(business);
+      }
+    }
+
+    final selectedBusinessExists = availableBusinesses.any((business) {
+      final id = int.tryParse(
+        (business['id'] ?? business['business_id'] ?? '').toString(),
+      );
+      return id == _selectedBusinessId;
+    });
+
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: _cardDecoration(),
@@ -861,29 +1042,100 @@ class _ConnectWebsiteScreenState extends State<ConnectWebsiteScreen> {
         children: [
           _sectionTitle(
             'Login & Authorize',
-            'अपनी Website के Owner होने की पुष्टि करें',
+            'अपनी Website का सुरक्षित Ownership Verification करें',
             Icons.verified_user_rounded,
           ),
           const SizedBox(height: 18),
-          _infoBox(
-            icon: Icons.lock_outline_rounded,
-            title: 'Secure Authorization',
-            message:
-                'Hosting Account Authorization के लिए सुरक्षित OAuth/API '
-                'Integration अभी Backend में उपलब्ध नहीं है। इस स्क्रीन पर '
-                'अपना Hosting Password या API Secret दर्ज न करें।',
-            color: _orange,
+
+          const Text(
+            'Select Existing Business',
+            style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 8),
+          DropdownButtonFormField<int>(
+            initialValue: selectedBusinessExists ? _selectedBusinessId : null,
+            isExpanded: true,
+            decoration: InputDecoration(
+              hintText: loading ? 'Businesses लोड हो रहे हैं...' : 'अपना Business चुनें',
+              prefixIcon: const Icon(Icons.business_outlined),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 14,
+              ),
+            ),
+            items: availableBusinesses.map((business) {
+              final id = int.parse(
+                (business['id'] ?? business['business_id']).toString(),
+              );
+              return DropdownMenuItem<int>(
+                value: id,
+                child: Text(
+                  _businessName(business),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              );
+            }).toList(),
+            onChanged: _authorizing || loading
+                ? null
+                : (id) {
+                    setState(() {
+                      _selectedBusinessId = id;
+                      final selected = availableBusinesses.firstWhere(
+                        (business) => int.tryParse(
+                          (business['id'] ?? business['business_id'] ?? '')
+                              .toString(),
+                        ) == id,
+                      );
+                      _nameController.text = _businessName(selected);
+                      _authorizationRequestId = null;
+                      _verificationFilePath = null;
+                      _verificationFileContent = null;
+                      _authorizationVerified = false;
+                      _authorizationMessage = '';
+                    });
+                  },
+          ),
+          if (!loading && availableBusinesses.isEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: _infoBox(
+                icon: Icons.info_outline_rounded,
+                title: 'Business उपलब्ध नहीं है',
+                message:
+                    'पहले अपने HPC Smart AI account में Business बनाएँ। '
+                    'यह स्क्रीन नया duplicate Business नहीं बनाएगी।',
+                color: _orange,
+              ),
+            ),
+
+          const SizedBox(height: 18),
           _resultRow('Website', _urlController.text.trim()),
           _resultRow('Detected Platform', _platform),
           _resultRow('Hosting', _hosting),
+
+          const SizedBox(height: 16),
+          _infoBox(
+            icon: Icons.lock_outline_rounded,
+            title: 'Automatic Authorization',
+            message:
+                'इस platform के लिए वास्तविक OAuth/Hosting API integration '
+                'अभी उपलब्ध नहीं है। Automatic Authorization अभी चालू नहीं है। '
+                'Hosting Password या API Secret यहाँ दर्ज न करें।',
+            color: _orange,
+          ),
+
           const SizedBox(height: 16),
           CheckboxListTile(
             value: _ownerConfirmed,
-            onChanged: (value) {
-              setState(() => _ownerConfirmed = value ?? false);
-            },
+            onChanged: _authorizing
+                ? null
+                : (value) {
+                    setState(() => _ownerConfirmed = value ?? false);
+                  },
             contentPadding: EdgeInsets.zero,
             controlAffinity: ListTileControlAffinity.leading,
             activeColor: _blue,
@@ -892,15 +1144,146 @@ class _ConnectWebsiteScreenState extends State<ConnectWebsiteScreen> {
               style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
             ),
           ),
+
           const SizedBox(height: 8),
           _infoBox(
             icon: Icons.shield_outlined,
-            title: 'Your Security',
+            title: 'Manual File Verification',
             message:
-                'HPC Smart AI बिना स्पष्ट अनुमति के Website की Files, '
-                'Database या Hosting Settings में बदलाव नहीं करेगा।',
+                'HPC Smart AI एक सुरक्षित verification file बनाएगा। '
+                'आप इसे स्वयं Website के बताए गए path पर upload करेंगे। '
+                'बिना आपकी कार्रवाई के Website की कोई File नहीं बदली जाएगी।',
             color: _green,
           ),
+
+          const SizedBox(height: 14),
+          SizedBox(
+            width: double.infinity,
+            height: 49,
+            child: ElevatedButton.icon(
+              onPressed: _authorizing ||
+                      _authorizationRequestId != null
+                  ? null
+                  : _startManualVerification,
+              icon: _authorizing
+                  ? const SizedBox(
+                      height: 18,
+                      width: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Icon(Icons.verified_user_outlined),
+              label: Text(
+                _authorizing
+                    ? 'Please wait...'
+                    : 'Create Verification File',
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _blue,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(13),
+                ),
+              ),
+            ),
+          ),
+
+          if (_verificationFilePath != null &&
+              _verificationFileContent != null) ...[
+            const SizedBox(height: 18),
+            _infoBox(
+              icon: Icons.upload_file_rounded,
+              title: 'Upload This Verification File',
+              message:
+                  'अपने Hosting File Manager या FTP से नीचे दी गई file '
+                  'Website के root में बनाएँ। File का नाम और content बिल्कुल '
+                  'वैसा ही रखें। Challenge लगभग 30 मिनट में expire होगा।',
+              color: _blue,
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'File Path',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 6),
+            SelectableText(_verificationFilePath!),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: () =>
+                    _copyVerificationText(_verificationFilePath!),
+                icon: const Icon(Icons.copy_rounded, size: 18),
+                label: const Text('Copy File Path'),
+              ),
+            ),
+            const Text(
+              'File Content',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 6),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF1F5F9),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: _border),
+              ),
+              child: SelectableText(
+                _verificationFileContent!,
+                style: const TextStyle(
+                  fontFamily: 'monospace',
+                  fontSize: 12,
+                ),
+              ),
+            ),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: () =>
+                    _copyVerificationText(_verificationFileContent!),
+                icon: const Icon(Icons.copy_rounded, size: 18),
+                label: const Text('Copy File Content'),
+              ),
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              height: 49,
+              child: ElevatedButton.icon(
+                onPressed: _authorizing || _authorizationVerified
+                    ? null
+                    : _verifyManualAuthorization,
+                icon: const Icon(Icons.fact_check_rounded),
+                label: Text(
+                  _authorizationVerified
+                      ? 'Ownership Verified'
+                      : 'Verify Uploaded File',
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _green,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(13),
+                  ),
+                ),
+              ),
+            ),
+          ],
+
+          if (_authorizationMessage.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            _infoBox(
+              icon: _authorizationVerified
+                  ? Icons.check_circle_rounded
+                  : Icons.info_outline_rounded,
+              title: 'Authorization Status',
+              message: _authorizationMessage,
+              color: _authorizationVerified ? _green : _blue,
+            ),
+          ],
         ],
       ),
     );
@@ -956,8 +1339,8 @@ class _ConnectWebsiteScreenState extends State<ConnectWebsiteScreen> {
             icon: Icons.info_outline_rounded,
             title: 'Next Step',
             message:
-                'आप Step 4 में Website की Public Reachability जाँच सकते हैं '
-                'और उसे HPC Smart AI में Register कर सकते हैं। इससे '
+                'Ownership verify होने के बाद Step 4 में Connection Status refresh कर सकते हैं। '
+                'Connector install और final verification अभी बाकी रहेंगे। इससे '
                 'Connector Installation का दावा नहीं किया जाएगा।',
             color: _blue,
           ),
@@ -967,6 +1350,8 @@ class _ConnectWebsiteScreenState extends State<ConnectWebsiteScreen> {
   }
 
   Widget _stepFour() {
+    final connectionId = _websiteConnectionId;
+
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: _cardDecoration(),
@@ -981,17 +1366,26 @@ class _ConnectWebsiteScreenState extends State<ConnectWebsiteScreen> {
           const SizedBox(height: 18),
           _infoBox(
             icon: Icons.fact_check_outlined,
-            title: 'Verification Checklist',
-            message: _verificationMessage.isEmpty
-                ? 'नीचे दिए गए बटन से Website की दोबारा जाँच करें।'
-                : _verificationMessage,
-            color: _websiteReachable == true ? _green : _blue,
+            title: _authorizationVerified
+                ? 'Website Ownership Verified'
+                : 'Ownership Verification Pending',
+            message: _authorizationVerified
+                ? 'Website ownership verify हो चुकी है। Connection अभी '
+                    'Pending है; Connector Installation और final checks '
+                    'पूरे होने के बाद ही Connected माना जाएगा।'
+                : 'Step 2 में पहले Website Ownership Verify करें।',
+            color: _authorizationVerified ? _green : _orange,
           ),
           const SizedBox(height: 16),
           _verificationRow(
             'Website Reachable',
             _websiteReachable,
             'Public HTTP response check',
+          ),
+          _verificationRow(
+            'Ownership Authorization',
+            _authorizationVerified,
+            'Manual website file challenge',
           ),
           _verificationRow(
             'Connector Live',
@@ -1013,22 +1407,27 @@ class _ConnectWebsiteScreenState extends State<ConnectWebsiteScreen> {
             _httpsEnabled,
             'Secure HTTPS website URL',
           ),
-          const SizedBox(height: 18),
-          if (_registered)
-            _infoBox(
-              icon: Icons.check_circle_rounded,
-              title: 'Website Registered in HPC Smart AI',
-              message:
-                  'Website Registration सफल हुई है। Connector Installation '
-                  'और Database Access अभी Verified नहीं हैं।',
-              color: _green,
-            ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 14),
+          _installStatus(
+            Icons.link_rounded,
+            'Website Connection ID',
+            connectionId?.toString() ?? 'Not created',
+          ),
+          _infoBox(
+            icon: Icons.info_outline_rounded,
+            title: 'Connection Status',
+            message: _verificationMessage.isNotEmpty
+                ? _verificationMessage
+                : 'अभी Connector install नहीं हुआ है। इसलिए Website '
+                    'को Connected घोषित नहीं किया गया है।',
+            color: _blue,
+          ),
+          const SizedBox(height: 14),
           SizedBox(
             width: double.infinity,
             height: 50,
             child: ElevatedButton.icon(
-              onPressed: _verifying || _registered ? null : _verifyAndRegister,
+              onPressed: _verifying ? null : _refreshConnectionStatus,
               icon: _verifying
                   ? const SizedBox(
                       height: 18,
@@ -1038,13 +1437,9 @@ class _ConnectWebsiteScreenState extends State<ConnectWebsiteScreen> {
                         color: Colors.white,
                       ),
                     )
-                  : const Icon(Icons.verified_user_rounded),
+                  : const Icon(Icons.refresh_rounded),
               label: Text(
-                _verifying
-                    ? 'Verifying...'
-                    : _registered
-                    ? 'Website Registered'
-                    : 'Verify & Register Website',
+                _verifying ? 'Refreshing...' : 'Refresh Connection Status',
               ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: _blue,
@@ -1055,25 +1450,6 @@ class _ConnectWebsiteScreenState extends State<ConnectWebsiteScreen> {
               ),
             ),
           ),
-          if (_registered) ...[
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              height: 48,
-              child: OutlinedButton.icon(
-                onPressed: _loadBusinesses,
-                icon: const Icon(Icons.dashboard_rounded),
-                label: const Text('Refresh Website List'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: _blue,
-                  side: const BorderSide(color: _blue),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(13),
-                  ),
-                ),
-              ),
-            ),
-          ],
         ],
       ),
     );
@@ -1428,18 +1804,16 @@ class _ConnectWebsiteScreenState extends State<ConnectWebsiteScreen> {
   }
 
   Widget _wizardContent() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _stepOne(),
-        const SizedBox(height: 15),
-        _stepTwo(),
-        const SizedBox(height: 15),
-        _stepThree(),
-        const SizedBox(height: 15),
-        _stepFour(),
-      ],
-    );
+    switch (_step) {
+      case 0:
+        return _stepOne();
+      case 1:
+        return _stepTwo();
+      case 2:
+        return _stepThree();
+      default:
+        return _stepFour();
+    }
   }
 
   @override
